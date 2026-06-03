@@ -46,10 +46,11 @@ price_columns = {"DonGia", "ThanhTien"}
 
 _REPORT_QUERIES = {
     "bc_datmon": """
-        SELECT d."Id", d."Ngay", d."MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
-               d."MaMonAn", m."TenMonAn", d."MaNhanVien", dn."TenTaiKhoan",
-               d."SoLuong", d."DonGia", d."ThanhTien", d."BuaAn",
-               d."MaCongTy", c."TenCongTy", d."TrangThai"
+        SELECT d."Ngay", d."MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
+               d."MaMonAn", m."TenMonAn", d."MaNhanVien",
+               dn."TenTaiKhoan" AS "TenNhanVien",
+               d."SoLuong", d."DonGia", d."ThanhTien",
+               d."MaCongTy", c."TenCongTy" {trangThai}
         FROM datmon d
         LEFT JOIN vitri v ON d."MaDiaDiem" = v."MaViTri"
         LEFT JOIN monan m ON d."MaMonAn" = m."MaMonAn"
@@ -61,6 +62,7 @@ _REPORT_QUERIES = {
     "bc_congty": """
         SELECT c."MaCongTy", c."TenCongTy",
                COUNT(d."Id") AS "SoDon",
+               COALESCE(SUM(d."DonGia"), 0) AS "DonGia",
                COALESCE(SUM(d."ThanhTien"), 0) AS "ThanhTien"
         FROM congty c
         LEFT JOIN datmon d ON c."MaCongTy" = d."MaCongTy"
@@ -69,24 +71,32 @@ _REPORT_QUERIES = {
         ORDER BY c."MaCongTy"
     """,
     "bc_diadiem": """
-        SELECT v."MaViTri" AS "MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
+        SELECT c."MaCongTy", c."TenCongTy",
+               v."MaViTri" AS "MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
                COUNT(d."Id") AS "SoDon",
+               COALESCE(SUM(d."DonGia"), 0) AS "DonGia",
                COALESCE(SUM(d."ThanhTien"), 0) AS "ThanhTien"
         FROM vitri v
+        LEFT JOIN congty c ON v."MaCongTy" = c."MaCongTy"
         LEFT JOIN datmon d ON v."MaViTri" = d."MaDiaDiem"
             AND d."Ngay" BETWEEN %s AND %s {status_join}
-        GROUP BY v."MaViTri", v."TenViTri"
+        GROUP BY c."MaCongTy", c."TenCongTy", v."MaViTri", v."TenViTri"
         ORDER BY v."MaViTri"
     """,
     "bc_nhanvien": """
-        SELECT dn."TaiKhoan" AS "MaNhanVien", dn."TenTaiKhoan",
+        SELECT c."MaCongTy", c."TenCongTy",
+               v."MaViTri" AS "MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
+               dn."TaiKhoan" AS "MaNhanVien", dn."TenTaiKhoan" AS "TenNhanVien",
                COUNT(d."Id") AS "SoDon",
+               COALESCE(SUM(d."DonGia"), 0) AS "DonGia",
                COALESCE(SUM(d."ThanhTien"), 0) AS "ThanhTien"
         FROM dangnhap dn
+        LEFT JOIN vitri v ON dn."MaDiaDiem" = v."MaViTri"
+        LEFT JOIN congty c ON v."MaCongTy" = c."MaCongTy"
         LEFT JOIN datmon d ON dn."TaiKhoan" = d."MaNhanVien"
             AND d."Ngay" BETWEEN %s AND %s {status_join}
-        WHERE dn."TrangThai" = 'active'
-        GROUP BY dn."TaiKhoan", dn."TenTaiKhoan"
+        GROUP BY c."MaCongTy", c."TenCongTy", v."MaViTri", v."TenViTri",
+                 dn."TaiKhoan", dn."TenTaiKhoan"
         ORDER BY dn."TaiKhoan"
     """,
 }
@@ -96,7 +106,8 @@ def load(proc, from_date, to_date, show_all=False):
     template = _REPORT_QUERIES[proc]
     if proc == "bc_datmon":
         status = "" if show_all else "AND d.\"TrangThai\" = 'active'"
-        query = template.format(status=status)
+        trang_thai_col = ', d."TrangThai"' if show_all else ""
+        query = template.format(status=status, trangThai=trang_thai_col)
         params = [str(from_date), str(to_date)]
     else:
         status_join = "" if show_all else "AND d.\"TrangThai\" = 'active'"
