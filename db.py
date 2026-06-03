@@ -498,7 +498,38 @@ def delete_thucdon(id_val):
     _clear_thucdon_cache()
 
 
+@st.cache_data(ttl=300)
 def get_sidebar(username=''):
+    try:
+        c = get_conn()
+        df = pd.read_sql(
+            'SELECT "sidebar","sidebar_cha","controller","title","icon","adm" '
+            'FROM sidebar WHERE "TrangThai"=\'active\' ORDER BY "sidebar"',
+            c
+        )
+        c.close()
+        df = df.where(pd.notna(df), None)
+        sections = []
+        parents = df[df["sidebar_cha"].isna()]
+        for _, parent in parents.iterrows():
+            children = df[df["sidebar_cha"] == parent["sidebar"]]
+            items = []
+            for _, child in children.iterrows():
+                icon = child["icon"] or ""
+                label = f"{icon} {child['title']}".strip()
+                items.append({
+                    "label": label,
+                    "key": child["controller"],
+                    "admin": bool(child["adm"]),
+                })
+            if items:
+                sections.append({"section": parent["title"], "items": items})
+        return sections
+    except Exception:
+        return _sidebar_fallback()
+
+
+def _sidebar_fallback():
     return [
         {
             "section": "Báo Cáo",
@@ -518,9 +549,7 @@ def get_sidebar(username=''):
         },
         {
             "section": "Thực Đơn",
-            "items": [
-                {"label": "📅 Thực Đơn", "key": "qlthucdon", "admin": True},
-            ],
+            "items": [{"label": "📅 Thực Đơn", "key": "qlthucdon", "admin": True}],
         },
         {
             "section": "Món Ăn",

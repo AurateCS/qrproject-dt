@@ -99,6 +99,32 @@ CREATE TABLE IF NOT EXISTS thucdon (
     "NguoiSua"       VARCHAR(100)
 );
 
+-- Daily menu (date-based, from SQL Server menu table)
+CREATE TABLE IF NOT EXISTS menu (
+    "Ngay"           DATE NOT NULL,
+    "MaDiaDiem"      VARCHAR(50) REFERENCES vitri("MaViTri"),
+    "MaMonAn"        VARCHAR(50) REFERENCES monan("MaMonAn"),
+    "ThoiGianBatDau" TIME,
+    "SoSuatDuKien"   INTEGER,
+    "TrangThai"      VARCHAR(20) DEFAULT 'active',
+    "NgayTao"        TIMESTAMP,
+    "NguoiTao"       VARCHAR(100),
+    "NgaySua"        TIMESTAMP,
+    "NguoiSua"       VARCHAR(100),
+    PRIMARY KEY ("Ngay", "MaDiaDiem", "MaMonAn")
+);
+
+-- Sidebar navigation (DB-driven)
+CREATE TABLE IF NOT EXISTS sidebar (
+    "sidebar"     VARCHAR(20) PRIMARY KEY,
+    "sidebar_cha" VARCHAR(20),
+    "controller"  VARCHAR(100),
+    "title"       VARCHAR(200) NOT NULL,
+    "icon"        VARCHAR(20),
+    "adm"         SMALLINT DEFAULT 0,
+    "TrangThai"   VARCHAR(20) DEFAULT 'active'
+);
+
 -- App configuration (key-value)
 CREATE TABLE IF NOT EXISTS config (
     "CauHinh" VARCHAR(100) PRIMARY KEY,
