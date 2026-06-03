@@ -608,8 +608,8 @@ if current_page == "qldatmon":
     st.markdown("<h2 style='margin:8px 0 16px 0;'>📋 Quản Lý Đặt Món</h2>", unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
-    from_d = col1.date_input("Từ ngày", value=date.today())
-    to_d   = col2.date_input("Đến ngày", value=date.today())
+    from_d = col1.date_input("Từ ngày", value=date.today(), format="DD/MM/YYYY")
+    to_d   = col2.date_input("Đến ngày", value=date.today(), format="DD/MM/YYYY")
     show_all_dm = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qldatmon")
 
     status_filter = "" if show_all_dm else "AND d.\"TrangThai\"='active'"
@@ -666,7 +666,7 @@ if current_page == "qldatmon":
             cn = next((k for k, v in nv_opts_dm.items() if v == r["MaNhanVien"]), nk[0])
             with st.form("edit_datmon"):
                 e1, e2 = st.columns(2)
-                ngay_e  = e1.date_input("Ngày", value=r["Ngay"].date() if hasattr(r["Ngay"], "date") else r["Ngay"])
+                ngay_e  = e1.date_input("Ngày", value=r["Ngay"].date() if hasattr(r["Ngay"], "date") else r["Ngay"], format="DD/MM/YYYY")
                 vitri_e = e2.selectbox("Địa Điểm", vk, index=vk.index(cv))
                 e3, e4  = st.columns(2)
                 monan_e = e3.selectbox("Món Ăn", mk, index=mk.index(cm))
@@ -727,7 +727,7 @@ if current_page == "themdatmon":
     nv_opts_tdm    = get_nhanvien_options()
 
     col1, col2 = st.columns(2)
-    ngay_add  = col1.date_input("Ngày", value=date.today())
+    ngay_add  = col1.date_input("Ngày", value=date.today(), format="DD/MM/YYYY")
     vitri_add = col2.selectbox("Địa Điểm", list(vitri_opts_tdm.keys()))
 
     ma_vitri_add  = vitri_opts_tdm[vitri_add]
@@ -1154,8 +1154,8 @@ st.markdown(f"<h2 style='margin:8px 0 16px 0;'>{page_titles[selected_key]}</h2>"
 
 # --- Page content ---
 col1, col2, col3 = st.columns([2, 2, 5])
-from_date = col1.date_input("Từ ngày", value=date.today())
-to_date = col2.date_input("Đến ngày", value=date.today())
+from_date = col1.date_input("Từ ngày", value=date.today(), format="DD/MM/YYYY")
+to_date = col2.date_input("Đến ngày", value=date.today(), format="DD/MM/YYYY")
 show_all = col3.toggle("Hiện tất cả (kể cả inactive)", key=f"show_all_{selected_key}")
 
 proc_map = {

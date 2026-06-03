@@ -126,6 +126,10 @@ def load(proc, from_date, to_date, show_all=False):
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime("%d/%m/%Y")
+        elif df[col].dtype == object:
+            sample = df[col].dropna()
+            if not sample.empty and hasattr(sample.iloc[0], "strftime"):
+                df[col] = df[col].apply(lambda x: x.strftime("%d/%m/%Y") if x is not None and hasattr(x, "strftime") else x)
     return df
 
 
