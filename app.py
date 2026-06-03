@@ -661,114 +661,119 @@ if current_page == "qlthucdon":
     bua_an_sel = col3.selectbox("Bữa Ăn", bua_options)
     chu_ky_ngay = day_labels.index(chu_ky_sel) + 1
 
-    show_all_td = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qlthucdon")
-    df_slot = get_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, show_all=show_all_td)
-
-    st.markdown(f"**{vitri_sel} · {chu_ky_sel} · Bữa {bua_an_sel}** — {len(df_slot)} món")
-
     monan_opts, _ = get_monan_options_for_vitri(ma_vitri)
-    all_codes = set(df_slot["MaMonAn"].tolist()) if not df_slot.empty else set()
 
-    if df_slot.empty:
-        st.caption("Chưa có món nào trong khung giờ này.")
-    else:
-        disp_cols = {"TenMonAn": "Tên Món Ăn", "DonGia": "Đơn Giá",
-                     "ThoiGianBatDau": "Giờ Bắt Đầu", "SoSuatDuKien": "Số Suất"}
-        if show_all_td:
-            disp_cols["TrangThai"] = "Trạng Thái"
-        disp = df_slot[list(disp_cols.keys())].rename(columns=disp_cols)
-        disp["Đơn Giá"] = disp["Đơn Giá"].apply(lambda x: f"{int(x):,}".replace(",", ".") if x is not None else x)
-        event_td = st.dataframe(disp, use_container_width=True, hide_index=True,
-                                on_select="rerun", selection_mode="single-row")
-        sel_td = event_td.selection.rows
-        if sel_td:
-            row_td = df_slot.iloc[sel_td[0]]
-            st.markdown(f"**Đang chỉnh sửa:** {row_td['TenMonAn']}")
+    tab_list, tab_add = st.tabs(["📋 Danh sách", "➕ Thêm món"])
 
-            tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa món", "🔄 Trạng thái", "🗑️ Xóa"])
+    with tab_list:
+        show_all_td = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qlthucdon")
+        df_slot = get_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, show_all=show_all_td)
+        all_codes = set(df_slot["MaMonAn"].tolist()) if not df_slot.empty else set()
 
-            with tab_edit:
-                other_codes = all_codes - {row_td["MaMonAn"]}
-                available_edit = {k: v for k, v in monan_opts.items() if v not in other_codes}
-                cur_label = next((k for k, v in monan_opts.items() if v == row_td["MaMonAn"]), None)
-                edit_keys = list(available_edit.keys())
-                cur_idx = edit_keys.index(cur_label) if cur_label in edit_keys else 0
-                _ts = str(row_td.get("ThoiGianBatDau", "") or "")
-                _cur_time = datetime.strptime(_ts, "%H:%M").time() if _ts else None
-                try:
-                    _ss_val = int(row_td["SoSuatDuKien"])
-                except (TypeError, ValueError):
-                    _ss_val = 0
-                with st.form("edit_thucdon"):
-                    sel_edit = st.selectbox("Món ăn", edit_keys, index=cur_idx)
-                    tc1, tc2 = st.columns(2)
-                    tgbd_e = tc1.time_input("Giờ Bắt Đầu", value=_cur_time)
-                    so_suat_e = tc2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=_ss_val)
-                    if st.form_submit_button("Lưu", use_container_width=True):
-                        try:
-                            update_thucdon(int(row_td["Id"]), available_edit[sel_edit], actor,
-                                           tgbd_e, int(so_suat_e) if so_suat_e else None)
-                            st.success("Đã cập nhật!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi: {e}")
+        st.markdown(f"**{vitri_sel} · {chu_ky_sel} · Bữa {bua_an_sel}** — {len(df_slot)} món")
 
-            with tab_status:
-                with st.form("status_thucdon"):
-                    b1, b2, b3 = st.columns(3)
-                    do_done     = b1.form_submit_button("🏁 Kết thúc hôm nay", use_container_width=True)
-                    do_inactive = b2.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                    do_active   = b3.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                    try:
-                        if do_done:
-                            finish_thucdon_today(ma_vitri, row_td["MaMonAn"], actor)
-                            st.success("Đã kết thúc phục vụ hôm nay!")
-                            st.rerun()
-                        elif do_inactive:
-                            soft_delete("thucdon", "Id", int(row_td["Id"]), actor)
-                            st.success("Đã vô hiệu hóa!")
-                            st.rerun()
-                        elif do_active:
-                            set_active("thucdon", "Id", int(row_td["Id"]), actor)
-                            st.success("Đã kích hoạt!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-
-            with tab_del:
-                st.warning(f"Xóa hẳn **{row_td['TenMonAn']}** khỏi thực đơn? Hành động này không thể hoàn tác.")
-                with st.form("del_thucdon"):
-                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
-                        try:
-                            delete_thucdon(int(row_td["Id"]))
-                            st.success("Đã xóa!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi: {e}")
-
-    # Add dish — each location can have up to 3 choices per meal slot
-    MAX_CHOICES = 3
-    active_codes = set(df_slot[df_slot["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot.empty else set()
-    if len(active_codes) >= MAX_CHOICES:
-        st.caption(f"✅ Đã có {len(active_codes)} món cho khung giờ này (tối đa {MAX_CHOICES}). Chọn món trong bảng trên để chỉnh sửa.")
-    else:
-        available = {k: v for k, v in monan_opts.items() if v not in all_codes}
-        if available:
-            with st.form("add_thucdon"):
-                sel_add = st.selectbox("Thêm món vào thực đơn", list(available.keys()))
-                ac1, ac2 = st.columns(2)
-                tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
-                so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
-                if st.form_submit_button("➕ Thêm", use_container_width=True):
-                    try:
-                        insert_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, available[sel_add], actor,
-                                       tgbd_add, int(so_suat_add) if so_suat_add else None)
-                        st.success("Đã thêm!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+        if df_slot.empty:
+            st.caption("Chưa có món nào trong khung giờ này.")
         else:
-            st.caption("Không còn món ăn khả dụng cho khung giờ này.")
+            disp_cols = {"TenMonAn": "Tên Món Ăn", "DonGia": "Đơn Giá",
+                         "ThoiGianBatDau": "Giờ Bắt Đầu", "SoSuatDuKien": "Số Suất"}
+            if show_all_td:
+                disp_cols["TrangThai"] = "Trạng Thái"
+            disp = df_slot[list(disp_cols.keys())].rename(columns=disp_cols)
+            disp["Đơn Giá"] = disp["Đơn Giá"].apply(lambda x: f"{int(x):,}".replace(",", ".") if x is not None else x)
+            event_td = st.dataframe(disp, use_container_width=True, hide_index=True,
+                                    on_select="rerun", selection_mode="single-row")
+            sel_td = event_td.selection.rows
+            if sel_td:
+                row_td = df_slot.iloc[sel_td[0]]
+                st.markdown(f"**Đang chỉnh sửa:** {row_td['TenMonAn']}")
+
+                tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa món", "🔄 Trạng thái", "🗑️ Xóa"])
+
+                with tab_edit:
+                    other_codes = all_codes - {row_td["MaMonAn"]}
+                    available_edit = {k: v for k, v in monan_opts.items() if v not in other_codes}
+                    cur_label = next((k for k, v in monan_opts.items() if v == row_td["MaMonAn"]), None)
+                    edit_keys = list(available_edit.keys())
+                    cur_idx = edit_keys.index(cur_label) if cur_label in edit_keys else 0
+                    _ts = str(row_td.get("ThoiGianBatDau", "") or "")
+                    _cur_time = datetime.strptime(_ts, "%H:%M").time() if _ts else None
+                    try:
+                        _ss_val = int(row_td["SoSuatDuKien"])
+                    except (TypeError, ValueError):
+                        _ss_val = 0
+                    with st.form("edit_thucdon"):
+                        sel_edit = st.selectbox("Món ăn", edit_keys, index=cur_idx)
+                        tc1, tc2 = st.columns(2)
+                        tgbd_e = tc1.time_input("Giờ Bắt Đầu", value=_cur_time)
+                        so_suat_e = tc2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=_ss_val)
+                        if st.form_submit_button("Lưu", use_container_width=True):
+                            try:
+                                update_thucdon(int(row_td["Id"]), available_edit[sel_edit], actor,
+                                               tgbd_e, int(so_suat_e) if so_suat_e else None)
+                                st.success("Đã cập nhật!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
+
+                with tab_status:
+                    with st.form("status_thucdon"):
+                        b1, b2, b3 = st.columns(3)
+                        do_done     = b1.form_submit_button("🏁 Kết thúc hôm nay", use_container_width=True)
+                        do_inactive = b2.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                        do_active   = b3.form_submit_button("✅ Kích hoạt", use_container_width=True)
+                        try:
+                            if do_done:
+                                finish_thucdon_today(ma_vitri, row_td["MaMonAn"], actor)
+                                st.success("Đã kết thúc phục vụ hôm nay!")
+                                st.rerun()
+                            elif do_inactive:
+                                soft_delete("thucdon", "Id", int(row_td["Id"]), actor)
+                                st.success("Đã vô hiệu hóa!")
+                                st.rerun()
+                            elif do_active:
+                                set_active("thucdon", "Id", int(row_td["Id"]), actor)
+                                st.success("Đã kích hoạt!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
+
+                with tab_del:
+                    st.warning(f"Xóa hẳn **{row_td['TenMonAn']}** khỏi thực đơn? Hành động này không thể hoàn tác.")
+                    with st.form("del_thucdon"):
+                        if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                            try:
+                                delete_thucdon(int(row_td["Id"]))
+                                st.success("Đã xóa!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
+
+    with tab_add:
+        df_slot_add = get_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel)
+        all_codes_add = set(df_slot_add["MaMonAn"].tolist()) if not df_slot_add.empty else set()
+        active_codes = set(df_slot_add[df_slot_add["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot_add.empty else set()
+        MAX_CHOICES = 3
+        if len(active_codes) >= MAX_CHOICES:
+            st.caption(f"✅ Đã có {len(active_codes)} món cho khung giờ này (tối đa {MAX_CHOICES}). Chuyển sang tab Danh sách để chỉnh sửa.")
+        else:
+            available = {k: v for k, v in monan_opts.items() if v not in all_codes_add}
+            if available:
+                with st.form("add_thucdon"):
+                    sel_add = st.selectbox("Thêm món vào thực đơn", list(available.keys()))
+                    ac1, ac2 = st.columns(2)
+                    tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
+                    so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
+                    if st.form_submit_button("➕ Thêm", use_container_width=True):
+                        try:
+                            insert_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, available[sel_add], actor,
+                                           tgbd_add, int(so_suat_add) if so_suat_add else None)
+                            st.success("Đã thêm!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
+            else:
+                st.caption("Không còn món ăn khả dụng cho khung giờ này.")
     st.stop()
 
 # --- Thêm Món Ăn page (admin only) ---
