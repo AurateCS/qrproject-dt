@@ -642,7 +642,6 @@ if current_page == "qlthucdon":
     ref_str = get_config('ngay_bat_dau_chu_ky') or str(date.today())
     ref_date = date.fromisoformat(ref_str.strip())
     today_cycle = get_chu_ky_hom_nay()
-    st.info(f"Hôm nay là **{day_labels[today_cycle - 1]}** (Ngày {today_cycle} trong chu kỳ 2 tuần).")
 
     # Filters
     day_names = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
@@ -650,6 +649,7 @@ if current_page == "qlthucdon":
         f"{(ref_date + timedelta(days=i-1)).strftime('%d/%m')} ({day_names[(ref_date + timedelta(days=i-1)).weekday()]})"
         for i in range(1, 15)
     ]
+    st.info(f"Hôm nay là **{day_labels[today_cycle - 1]}** (Ngày {today_cycle} trong chu kỳ 2 tuần).")
 
     vitri_opts = get_vitri_options()
     col1, col2, col3 = st.columns(3)
