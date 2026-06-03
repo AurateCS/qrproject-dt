@@ -641,6 +641,13 @@ def _sidebar_fallback():
             ],
         },
         {
+            "section": "Đặt Món",
+            "items": [
+                {"label": "📋 Quản Lý Đặt Món", "key": "qldatmon",   "admin": True},
+                {"label": "➕ Thêm Đặt Món",     "key": "themdatmon", "admin": True},
+            ],
+        },
+        {
             "section": "Thực Đơn",
             "items": [
                 {"label": "📅 Quản Lý Thực Đơn", "key": "qlthucdon",   "admin": True},

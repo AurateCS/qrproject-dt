@@ -3,6 +3,7 @@ from streamlit_extras.let_it_rain import rain
 from datetime import date, timedelta, datetime
 from io import BytesIO
 import time
+import pandas as pd
 from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active,
                 get_vitri_options, get_congty_options, get_monan_options, get_monan_options_for_vitri,
                 get_nhanvien_options,
@@ -601,6 +602,163 @@ if current_page == "order":
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
     st.stop()
+
+# --- Quản Lý Đặt Món page (admin only) ---
+if current_page == "qldatmon":
+    if not is_admin:
+        st.error("Không có quyền truy cập.")
+        st.stop()
+    top_header()
+    sidebar_nav()
+    st.markdown("<h2 style='margin:8px 0 16px 0;'>📋 Quản Lý Đặt Món</h2>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    from_d = col1.date_input("Từ ngày", value=date.today())
+    to_d   = col2.date_input("Đến ngày", value=date.today())
+    show_all_dm = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qldatmon")
+
+    status_filter = "" if show_all_dm else "AND d.\"TrangThai\"='active'"
+    _c = get_conn()
+    raw_dm = pd.read_sql(
+        f'SELECT d."Id",d."Ngay",d."MaDiaDiem",v."TenViTri",d."MaMonAn",m."TenMonAn",'
+        f'd."MaNhanVien",dn."TenTaiKhoan",d."BuaAn",d."SoLuong",d."DonGia",d."ThanhTien",d."TrangThai" '
+        f'FROM datmon d '
+        f'LEFT JOIN vitri v ON d."MaDiaDiem"=v."MaViTri" '
+        f'LEFT JOIN monan m ON d."MaMonAn"=m."MaMonAn" '
+        f'LEFT JOIN dangnhap dn ON d."MaNhanVien"=dn."TaiKhoan" '
+        f'WHERE d."Ngay" BETWEEN %s AND %s {status_filter} '
+        f'ORDER BY d."Ngay" DESC,d."NgayTao" DESC',
+        _c, params=[str(from_d), str(to_d)]
+    )
+    _c.close()
+
+    disp_dm = raw_dm[["Ngay","TenViTri","TenMonAn","TenTaiKhoan","BuaAn","SoLuong","DonGia","ThanhTien","TrangThai"]].rename(columns={
+        "Ngay": "Ngày", "TenViTri": "Địa Điểm", "TenMonAn": "Tên Món",
+        "TenTaiKhoan": "Nhân Viên", "BuaAn": "Bữa", "SoLuong": "SL",
+        "DonGia": "Đơn Giá", "ThanhTien": "Thành Tiền", "TrangThai": "Trạng Thái"
+    })
+    for col in ["Đơn Giá", "Thành Tiền"]:
+        disp_dm[col] = disp_dm[col].apply(lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x)
+
+    event_dm = st.dataframe(disp_dm, use_container_width=True, hide_index=True,
+                            on_select="rerun", selection_mode="single-row")
+
+    buf_dm = BytesIO()
+    raw_dm.to_excel(buf_dm, index=False)
+    st.download_button("⬇️ Xuất Excel", buf_dm.getvalue(), file_name=f"datmon_{from_d}_{to_d}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    sel_dm = event_dm.selection.rows
+    if not sel_dm:
+        st.caption("Chọn một dòng để chỉnh sửa.")
+    else:
+        r = raw_dm.iloc[sel_dm[0]]
+        st.markdown(f"**Đang chỉnh sửa:** {r['TenMonAn']} — {r['TenTaiKhoan']} ({r['Ngay']})")
+
+        vitri_opts_dm   = get_vitri_options()
+        monan_opts_dm, prices_dm = get_monan_options()
+        nv_opts_dm      = get_nhanvien_options()
+
+        tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa", "🔄 Trạng thái", "🗑️ Xóa"])
+
+        with tab_edit:
+            vk = list(vitri_opts_dm.keys())
+            cv = next((k for k, v in vitri_opts_dm.items() if v == r["MaDiaDiem"]), vk[0])
+            mk = list(monan_opts_dm.keys())
+            cm = next((k for k, v in monan_opts_dm.items() if v == r["MaMonAn"]), mk[0])
+            nk = list(nv_opts_dm.keys())
+            cn = next((k for k, v in nv_opts_dm.items() if v == r["MaNhanVien"]), nk[0])
+            with st.form("edit_datmon"):
+                e1, e2 = st.columns(2)
+                ngay_e  = e1.date_input("Ngày", value=r["Ngay"].date() if hasattr(r["Ngay"], "date") else r["Ngay"])
+                vitri_e = e2.selectbox("Địa Điểm", vk, index=vk.index(cv))
+                e3, e4  = st.columns(2)
+                monan_e = e3.selectbox("Món Ăn", mk, index=mk.index(cm))
+                nv_e    = e4.selectbox("Nhân Viên", nk, index=nk.index(cn))
+                e5, e6  = st.columns(2)
+                sl_e    = e5.number_input("Số Lượng", min_value=1, step=1, value=int(r["SoLuong"]))
+                dg_e    = e6.number_input("Đơn Giá", min_value=0, step=1000, value=int(r["DonGia"]))
+                if st.form_submit_button("Lưu", use_container_width=True):
+                    try:
+                        update_datmon(r["Id"], ngay_e, vitri_opts_dm[vitri_e],
+                                      monan_opts_dm[monan_e], nv_opts_dm[nv_e],
+                                      sl_e, dg_e, actor)
+                        st.success("Đã cập nhật!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+
+        with tab_status:
+            with st.form("status_datmon"):
+                b1, b2 = st.columns(2)
+                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
+                try:
+                    if do_inactive:
+                        soft_delete("datmon", "Id", r["Id"], actor)
+                        st.success("Đã vô hiệu hóa!")
+                        st.rerun()
+                    elif do_active:
+                        set_active("datmon", "Id", r["Id"], actor)
+                        st.success("Đã kích hoạt!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
+
+        with tab_del:
+            st.warning("Xóa hẳn đơn này? Hành động này không thể hoàn tác.")
+            with st.form("del_datmon"):
+                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                    try:
+                        hard_delete("datmon", "Id", r["Id"])
+                        st.success("Đã xóa!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+    st.stop()
+
+
+# --- Thêm Đặt Món page (admin only) ---
+if current_page == "themdatmon":
+    if not is_admin:
+        st.error("Không có quyền truy cập.")
+        st.stop()
+    top_header()
+    sidebar_nav()
+    st.markdown("<h2 style='margin:8px 0 16px 0;'>➕ Thêm Đặt Món</h2>", unsafe_allow_html=True)
+
+    vitri_opts_tdm = get_vitri_options()
+    nv_opts_tdm    = get_nhanvien_options()
+
+    col1, col2, col3 = st.columns(3)
+    ngay_add  = col1.date_input("Ngày", value=date.today())
+    vitri_add = col2.selectbox("Địa Điểm", list(vitri_opts_tdm.keys()))
+    bua_add   = col3.selectbox("Bữa Ăn", ["Sáng", "Trưa", "Chiều"])
+
+    ma_vitri_add  = vitri_opts_tdm[vitri_add]
+    vitri_detail_add = get_vitri_detail(ma_vitri_add)
+    ma_congty_add = vitri_detail_add[1] if vitri_detail_add else None
+    monan_opts_tdm, prices_tdm = get_monan_options_for_vitri(ma_vitri_add)
+
+    with st.form("them_datmon"):
+        e1, e2 = st.columns(2)
+        monan_add = e1.selectbox("Món Ăn", list(monan_opts_tdm.keys()))
+        nv_add    = e2.selectbox("Nhân Viên", list(nv_opts_tdm.keys()))
+        e3, e4 = st.columns(2)
+        sl_add = e3.number_input("Số Lượng", min_value=1, step=1, value=1)
+        ma_monan_tdm = monan_opts_tdm.get(monan_add)
+        default_gia  = int(prices_tdm.get(ma_monan_tdm, 0)) if ma_monan_tdm else 0
+        dg_add = e4.number_input("Đơn Giá", min_value=0, step=1000, value=default_gia)
+        if st.form_submit_button("➕ Thêm", use_container_width=True):
+            try:
+                insert_datmon(ngay_add, ma_vitri_add, ma_congty_add,
+                              monan_opts_tdm[monan_add], nv_opts_tdm[nv_add],
+                              sl_add, dg_add, actor, bua_add)
+                st.success("Đã thêm!")
+            except Exception as e:
+                st.error(f"Lỗi: {e}")
+    st.stop()
+
 
 # --- Quản Lý Thực Đơn page (admin only) ---
 if current_page == "qlthucdon":
