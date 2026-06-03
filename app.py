@@ -1158,7 +1158,7 @@ st.markdown(f"<h2 style='margin:8px 0 16px 0;'>{page_titles[selected_key]}</h2>"
 col1, col2 = st.columns(2)
 from_date = col1.date_input("Từ ngày", value=date.today(), format="DD/MM/YYYY")
 to_date = col2.date_input("Đến ngày", value=date.today(), format="DD/MM/YYYY")
-show_all = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_report")
+#show_all = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_report")
 
 proc_map = {
     "datmon":   "bc_datmon",
