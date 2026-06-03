@@ -10,7 +10,7 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 update_datmon, update_congty, update_vitri, update_nhanvien, update_monan,
                 update_user_password, toggle_admin, get_sidebar,
                 get_config, set_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
-                get_thucdon_hom_nay, get_vitri_detail, check_duplicate_order,
+                get_thucdon_hom_nay, get_vitri_detail,
                 update_thucdon, get_thucdon_available, finish_thucdon_today)
 from auth import create_session, validate_session, delete_session
 
@@ -578,25 +578,8 @@ if current_page == "order":
         st.info("Chưa có bữa ăn nào bắt đầu phục vụ.")
         st.stop()
 
-    # Track which BuaAn the employee already ordered today
-    already_ordered = {
-        bua for bua in ["Sáng", "Trưa", "Chiều"]
-        if check_duplicate_order(actor, date.today(), bua, ma_vitri)
-    }
-    if already_ordered:
-        st.caption("Đã đặt: " + ", ".join(
-            f"Bữa {b}" for b in ["Sáng", "Trưa", "Chiều"] if b in already_ordered
-        ))
-
     bua_order = ["Sáng", "Trưa", "Chiều"]
-    available_buas = [
-        b for b in bua_order
-        if b in df_avail["BuaAn"].values and b not in already_ordered
-    ]
-
-    if not available_buas:
-        st.success("Bạn đã đặt tất cả các bữa ăn có sẵn hôm nay.")
-        st.stop()
+    available_buas = [b for b in bua_order if b in df_avail["BuaAn"].values]
 
     for bua_an in available_buas:
         bua_df = df_avail[df_avail["BuaAn"] == bua_an]
