@@ -624,7 +624,10 @@ def _sidebar_fallback():
         },
         {
             "section": "Thực Đơn",
-            "items": [{"label": "📅 Thực Đơn", "key": "qlthucdon", "admin": True}],
+            "items": [
+                {"label": "📅 Quản Lý Thực Đơn", "key": "qlthucdon",   "admin": True},
+                {"label": "➕ Thêm Thực Đơn",     "key": "themthucdon", "admin": True},
+            ],
         },
         {
             "section": "Món Ăn",
