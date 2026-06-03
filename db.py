@@ -30,6 +30,7 @@ column_labels = {
     "TaiKhoan": "Tài Khoản",
     "TenTaiKhoan": "Tên Tài Khoản",
     "TenNhanVien": "Tên Nhân Viên",
+    "SoDon": "Số Lượng",
     "SoLuong": "Số Lượng",
     "DonGia": "Đơn Giá",
     "ThanhTien": "Thành Tiền",
