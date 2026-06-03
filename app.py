@@ -490,7 +490,6 @@ if current_page == "thucdon":
     if loc_sel != "Tất cả":
         df_hom_nay = df_hom_nay[df_hom_nay["TenViTri"] == loc_sel]
         locations = [loc_sel]
-    bua_order_list = ["Sáng", "Trưa", "Chiều"]
     for loc in locations:
         st.markdown(f"""
         <div style='background:linear-gradient(135deg,#EE1C25,#b01018);color:white;
@@ -500,38 +499,32 @@ if current_page == "thucdon":
             <span style='font-size:1.1rem;font-weight:700;'>{loc}</span>
         </div>""", unsafe_allow_html=True)
         loc_df = df_hom_nay[df_hom_nay["TenViTri"] == loc]
-        buas = [b for b in bua_order_list if b in loc_df["BuaAn"].values]
-        cols = st.columns(len(buas))
-        for i, bua in enumerate(buas):
-            bua_df = loc_df[loc_df["BuaAn"] == bua]
-            with cols[i]:
-                for _, row in bua_df.iterrows():
-                    don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
-                    img_url = resolve_image(row.get("HinhAnh"))
-                    img_html = (
-                        f'<img src="{img_url}" style="width:100%;height:170px;'
-                        f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
-                        if img_url else
-                        '<div style="width:100%;height:100px;background:#f5f5f5;'
-                        'border-radius:10px 10px 0 0;display:flex;align-items:center;'
-                        'justify-content:center;font-size:2rem;">🍽️</div>'
-                    )
-                    st.markdown(f"""
-                    <div style='border:1px solid #eee;border-radius:10px;overflow:hidden;
-                                box-shadow:0 2px 10px rgba(0,0,0,0.07);margin-bottom:10px;'>
-                        {img_html}
-                        <div style='padding:12px 14px;'>
-                            <div style='font-size:0.68rem;font-weight:700;color:#EE1C25;
-                                        text-transform:uppercase;letter-spacing:1.2px;
-                                        margin-bottom:5px;'>Bữa {bua}</div>
-                            <div style='font-weight:700;font-size:1rem;color:#1a1a1a;
-                                        margin-bottom:8px;line-height:1.3;'>{row['TenMonAn']}</div>
-                            <span style='background:#EE1C25;color:white;padding:3px 12px;
-                                         border-radius:20px;font-size:0.82rem;font-weight:600;'>
-                                {don_gia_str} ₫
-                            </span>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
+        cols = st.columns(3)
+        for i, (_, row) in enumerate(loc_df.iterrows()):
+            don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
+            img_url = resolve_image(row.get("HinhAnh"))
+            img_html = (
+                f'<img src="{img_url}" style="width:100%;height:170px;'
+                f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
+                if img_url else
+                '<div style="width:100%;height:100px;background:#f5f5f5;'
+                'border-radius:10px 10px 0 0;display:flex;align-items:center;'
+                'justify-content:center;font-size:2rem;">🍽️</div>'
+            )
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div style='border:1px solid #eee;border-radius:10px;overflow:hidden;
+                            box-shadow:0 2px 10px rgba(0,0,0,0.07);margin-bottom:10px;'>
+                    {img_html}
+                    <div style='padding:12px 14px;'>
+                        <div style='font-weight:700;font-size:1rem;color:#1a1a1a;
+                                    margin-bottom:8px;line-height:1.3;'>{row['TenMonAn']}</div>
+                        <span style='background:#EE1C25;color:white;padding:3px 12px;
+                                     border-radius:20px;font-size:0.82rem;font-weight:600;'>
+                            {don_gia_str} ₫
+                        </span>
+                    </div>
+                </div>""", unsafe_allow_html=True)
         st.markdown("<div style='margin:8px 0 4px;border-top:1px solid #eee;'></div>",
                     unsafe_allow_html=True)
     st.stop()
@@ -579,28 +572,22 @@ if current_page == "order":
         st.info("Chưa có bữa ăn nào bắt đầu phục vụ.")
         st.stop()
 
-    bua_order = ["Sáng", "Trưa", "Chiều"]
-    available_buas = [b for b in bua_order if b in df_avail["BuaAn"].values]
-
-    for bua_an in available_buas:
-        bua_df = df_avail[df_avail["BuaAn"] == bua_an]
-        st.markdown(f"**Bữa {bua_an}**")
-        price_lookup = dict(zip(bua_df["MaMonAn"], bua_df["DonGia"]))
-        menu_options = {
-            f"{r['TenMonAn']}  —  {int(r['DonGia']):,}".replace(",", "."): r["MaMonAn"]
-            for _, r in bua_df.iterrows()
-        }
-        with st.form(f"order_form_{bua_an}"):
-            sel_label = st.radio("Chọn món:", list(menu_options.keys()))
-            if st.form_submit_button(f"✅ Đặt Bữa {bua_an}", use_container_width=True):
-                ma_monan = menu_options[sel_label]
-                don_gia = int(price_lookup[ma_monan])
-                try:
-                    insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan, actor, 1, don_gia, actor, bua_an)
-                    st.success(f"Đặt món thành công! **{sel_label.split('  —  ')[0]}** · Bữa {bua_an}")
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
+    price_lookup = dict(zip(df_avail["MaMonAn"], df_avail["DonGia"]))
+    menu_options = {
+        f"{r['TenMonAn']}  —  {int(r['DonGia']):,}".replace(",", "."): r["MaMonAn"]
+        for _, r in df_avail.iterrows()
+    }
+    with st.form("order_form"):
+        sel_label = st.radio("Chọn món:", list(menu_options.keys()))
+        if st.form_submit_button("✅ Đặt Món", use_container_width=True):
+            ma_monan = menu_options[sel_label]
+            don_gia = int(price_lookup[ma_monan])
+            try:
+                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan, actor, 1, don_gia, actor, '')
+                st.success(f"Đặt món thành công! **{sel_label.split('  —  ')[0]}**")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Quản Lý Đặt Món page (admin only) ---
@@ -632,9 +619,9 @@ if current_page == "qldatmon":
     )
     _c.close()
 
-    disp_dm = raw_dm[["Ngay","TenViTri","TenMonAn","TenTaiKhoan","BuaAn","SoLuong","DonGia","ThanhTien","TrangThai"]].rename(columns={
+    disp_dm = raw_dm[["Ngay","TenViTri","TenMonAn","TenTaiKhoan","SoLuong","DonGia","ThanhTien","TrangThai"]].rename(columns={
         "Ngay": "Ngày", "TenViTri": "Địa Điểm", "TenMonAn": "Tên Món",
-        "TenTaiKhoan": "Nhân Viên", "BuaAn": "Bữa", "SoLuong": "SL",
+        "TenTaiKhoan": "Nhân Viên", "SoLuong": "SL",
         "DonGia": "Đơn Giá", "ThanhTien": "Thành Tiền", "TrangThai": "Trạng Thái"
     })
     for col in ["Đơn Giá", "Thành Tiền"]:
@@ -730,10 +717,9 @@ if current_page == "themdatmon":
     vitri_opts_tdm = get_vitri_options()
     nv_opts_tdm    = get_nhanvien_options()
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     ngay_add  = col1.date_input("Ngày", value=date.today())
     vitri_add = col2.selectbox("Địa Điểm", list(vitri_opts_tdm.keys()))
-    bua_add   = col3.selectbox("Bữa Ăn", ["Sáng", "Trưa", "Chiều"])
 
     ma_vitri_add  = vitri_opts_tdm[vitri_add]
     vitri_detail_add = get_vitri_detail(ma_vitri_add)
@@ -753,7 +739,7 @@ if current_page == "themdatmon":
             try:
                 insert_datmon(ngay_add, ma_vitri_add, ma_congty_add,
                               monan_opts_tdm[monan_add], nv_opts_tdm[nv_add],
-                              sl_add, dg_add, actor, bua_add)
+                              sl_add, dg_add, actor, '')
                 st.success("Đã thêm!")
             except Exception as e:
                 st.error(f"Lỗi: {e}")
@@ -781,33 +767,19 @@ if current_page == "qlthucdon":
     ]
 
     vitri_opts = get_vitri_options()
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     vitri_sel  = col1.selectbox("Địa Điểm", list(vitri_opts.keys()))
     chu_ky_sel = col2.selectbox("Ngày Chu Kỳ", day_labels, index=today_cycle - 1)
 
     ma_vitri = vitri_opts[vitri_sel]
-
-    # Only show meals the location actually serves
-    _c = get_conn(); _cur = _c.cursor()
-    _cur.execute("SELECT \"BuaSang\", \"BuaTrua\", \"BuaChieu\" FROM vitri WHERE \"MaViTri\" = %s", (ma_vitri,))
-    _vt = _cur.fetchone(); _c.close()
-    bua_options = []
-    if _vt:
-        if _vt[0]: bua_options.append("Sáng")
-        if _vt[1]: bua_options.append("Trưa")
-        if _vt[2]: bua_options.append("Chiều")
-    if not bua_options:
-        st.warning("Địa điểm này chưa được cấu hình bữa ăn.")
-        st.stop()
-    bua_an_sel = col3.selectbox("Bữa Ăn", bua_options)
     chu_ky_ngay = day_labels.index(chu_ky_sel) + 1
 
     monan_opts, _ = get_monan_options_for_vitri(ma_vitri)
     show_all_td = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qlthucdon")
-    df_slot = get_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, show_all=show_all_td)
+    df_slot = get_thucdon(ma_vitri, chu_ky_ngay, show_all=show_all_td)
     all_codes = set(df_slot["MaMonAn"].tolist()) if not df_slot.empty else set()
 
-    st.markdown(f"**{vitri_sel} · {chu_ky_sel} · Bữa {bua_an_sel}** — {len(df_slot)} món")
+    st.markdown(f"**{vitri_sel} · {chu_ky_sel}** — {len(df_slot)} món")
 
     if df_slot.empty:
         st.caption("Chưa có món nào trong khung giờ này.")
@@ -906,36 +878,23 @@ if current_page == "themthucdon":
     ]
 
     vitri_opts = get_vitri_options()
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     vitri_sel  = col1.selectbox("Địa Điểm", list(vitri_opts.keys()), key="add_td_vitri")
     chu_ky_sel = col2.selectbox("Ngày Chu Kỳ", day_labels, index=today_cycle - 1, key="add_td_ck")
 
     ma_vitri = vitri_opts[vitri_sel]
-
-    _c = get_conn(); _cur = _c.cursor()
-    _cur.execute("SELECT \"BuaSang\",\"BuaTrua\",\"BuaChieu\" FROM vitri WHERE \"MaViTri\"=%s", (ma_vitri,))
-    _vt = _cur.fetchone(); _c.close()
-    bua_options = []
-    if _vt:
-        if _vt[0]: bua_options.append("Sáng")
-        if _vt[1]: bua_options.append("Trưa")
-        if _vt[2]: bua_options.append("Chiều")
-    if not bua_options:
-        st.warning("Địa điểm này chưa được cấu hình bữa ăn.")
-        st.stop()
-    bua_an_sel = col3.selectbox("Bữa Ăn", bua_options, key="add_td_bua")
     chu_ky_ngay = day_labels.index(chu_ky_sel) + 1
 
     monan_opts, _ = get_monan_options_for_vitri(ma_vitri)
-    df_slot = get_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel)
+    df_slot = get_thucdon(ma_vitri, chu_ky_ngay)
     all_codes = set(df_slot["MaMonAn"].tolist()) if not df_slot.empty else set()
     active_codes = set(df_slot[df_slot["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot.empty else set()
 
     MAX_CHOICES = 3
-    st.markdown(f"**{vitri_sel} · {chu_ky_sel} · Bữa {bua_an_sel}** — hiện có {len(active_codes)}/{MAX_CHOICES} món")
+    st.markdown(f"**{vitri_sel} · {chu_ky_sel}** — hiện có {len(active_codes)}/{MAX_CHOICES} món")
 
     if len(active_codes) >= MAX_CHOICES:
-        st.caption(f"Đã đủ {MAX_CHOICES} món cho khung giờ này. Vào Quản Lý Thực Đơn để chỉnh sửa.")
+        st.caption(f"Đã đủ {MAX_CHOICES} món cho ngày này. Vào Quản Lý Thực Đơn để chỉnh sửa.")
     else:
         available = {k: v for k, v in monan_opts.items() if v not in all_codes}
         if available:
@@ -946,14 +905,14 @@ if current_page == "themthucdon":
                 so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
                 if st.form_submit_button("➕ Thêm", use_container_width=True):
                     try:
-                        insert_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, available[sel_add], actor,
+                        insert_thucdon(ma_vitri, chu_ky_ngay, available[sel_add], actor,
                                        tgbd_add, int(so_suat_add) if so_suat_add else None)
                         st.success("Đã thêm!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
         else:
-            st.caption("Không còn món ăn khả dụng cho khung giờ này.")
+            st.caption("Không còn món ăn khả dụng cho ngày này.")
     st.stop()
 
 # --- Thêm Món Ăn page (admin only) ---

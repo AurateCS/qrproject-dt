@@ -422,15 +422,15 @@ def get_chu_ky_hom_nay():
 
 
 @st.cache_data(ttl=120)
-def get_thucdon(ma_vitri, chu_ky_ngay, bua_an, show_all=False):
+def get_thucdon(ma_vitri, chu_ky_ngay, show_all=False):
     status_filter = "" if show_all else "AND t.\"TrangThai\"='active'"
     c = get_conn()
     df = pd.read_sql(
         f'SELECT t."Id",t."MaMonAn",t."TrangThai",t."ThoiGianBatDau",t."SoSuatDuKien",'
         f'm."TenMonAn",m."DonGia" '
         f'FROM thucdon t JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
-        f'WHERE t."MaViTri"=%s AND t."ChuKyNgay"=%s AND t."BuaAn"=%s {status_filter}',
-        c, params=[ma_vitri, chu_ky_ngay, bua_an]
+        f'WHERE t."MaViTri"=%s AND t."ChuKyNgay"=%s {status_filter}',
+        c, params=[ma_vitri, chu_ky_ngay]
     )
     c.close()
     df["ThoiGianBatDau"] = df["ThoiGianBatDau"].apply(
@@ -440,12 +440,12 @@ def get_thucdon(ma_vitri, chu_ky_ngay, bua_an, show_all=False):
 
 
 @st.cache_data(ttl=60)
-def get_monan_used_in_cycle(chu_ky_ngay, bua_an, exclude_vitri):
+def get_monan_used_in_cycle(chu_ky_ngay, exclude_vitri):
     c = get_conn()
     df = pd.read_sql(
         'SELECT DISTINCT t."MaMonAn" FROM thucdon t '
-        'WHERE t."ChuKyNgay"=%s AND t."BuaAn"=%s AND t."MaViTri"!=%s AND t."TrangThai"=\'active\'',
-        c, params=[chu_ky_ngay, bua_an, exclude_vitri]
+        'WHERE t."ChuKyNgay"=%s AND t."MaViTri"!=%s AND t."TrangThai"=\'active\'',
+        c, params=[chu_ky_ngay, exclude_vitri]
     )
     c.close()
     return set(df["MaMonAn"].tolist())
@@ -458,14 +458,14 @@ def _clear_thucdon_cache():
     get_monan_used_in_cycle.clear()
 
 
-def insert_thucdon(ma_vitri, chu_ky_ngay, bua_an, ma_monan, actor, thoi_gian=None, so_suat=None):
+def insert_thucdon(ma_vitri, chu_ky_ngay, ma_monan, actor, thoi_gian=None, so_suat=None):
     now = _now()
     c = get_conn()
     cur = c.cursor()
     cur.execute(
         'INSERT INTO thucdon ("MaViTri","ChuKyNgay","BuaAn","MaMonAn","ThoiGianBatDau","SoSuatDuKien","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") '
-        "VALUES (%s,%s,%s,%s,%s,%s,'active',%s,%s,%s,%s)",
-        (ma_vitri, chu_ky_ngay, bua_an, ma_monan, thoi_gian, so_suat, now, actor, now, actor)
+        "VALUES (%s,%s,'',%s,%s,%s,'active',%s,%s,%s,%s)",
+        (ma_vitri, chu_ky_ngay, ma_monan, thoi_gian, so_suat, now, actor, now, actor)
     )
     c.commit()
     c.close()
@@ -478,24 +478,24 @@ def get_thucdon_available(ma_vitri, chu_ky_ngay):
     today = str(_date.today())
     c = get_conn()
     df = pd.read_sql(
-        'SELECT t."Id",t."MaMonAn",t."BuaAn",t."ThoiGianBatDau",t."SoSuatDuKien",'
+        'SELECT t."Id",t."MaMonAn",t."ThoiGianBatDau",t."SoSuatDuKien",'
         'm."TenMonAn",m."DonGia" '
         'FROM thucdon t '
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'LEFT JOIN menu mn ON mn."Ngay"=%s '
         '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
         'LEFT JOIN ('
-        '    SELECT "MaDiaDiem","MaMonAn","BuaAn",COUNT(*) AS cnt '
+        '    SELECT "MaDiaDiem","MaMonAn",COUNT(*) AS cnt '
         '    FROM datmon '
         '    WHERE "Ngay"=CURRENT_DATE AND "TrangThai"=\'active\' '
-        '    GROUP BY "MaDiaDiem","MaMonAn","BuaAn"'
-        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" AND oc."BuaAn"=t."BuaAn" '
+        '    GROUP BY "MaDiaDiem","MaMonAn"'
+        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" '
         'WHERE t."MaViTri"=%s AND t."ChuKyNgay"=%s '
         "AND t.\"TrangThai\"='active' "
         "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
         'AND (t."SoSuatDuKien" IS NULL OR t."SoSuatDuKien"=0 '
         '     OR COALESCE(oc.cnt,0) < t."SoSuatDuKien") '
-        'ORDER BY t."BuaAn",m."TenMonAn"',
+        'ORDER BY m."TenMonAn"',
         c, params=[today, ma_vitri, chu_ky_ngay]
     )
     c.close()
@@ -542,26 +542,23 @@ def get_thucdon_hom_nay():
     today = str(_date.today())
     c = get_conn()
     df = pd.read_sql(
-        'SELECT v."TenViTri",t."BuaAn",m."TenMonAn",m."DonGia",m."HinhAnh" '
+        'SELECT v."TenViTri",m."TenMonAn",m."DonGia",m."HinhAnh" '
         'FROM thucdon t '
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'JOIN vitri v ON t."MaViTri"=v."MaViTri" '
         'LEFT JOIN menu mn ON mn."Ngay"=%s '
         '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
         'LEFT JOIN ('
-        '    SELECT "MaDiaDiem","MaMonAn","BuaAn",COUNT(*) AS cnt '
+        '    SELECT "MaDiaDiem","MaMonAn",COUNT(*) AS cnt '
         '    FROM datmon '
         '    WHERE "Ngay"=CURRENT_DATE AND "TrangThai"=\'active\' '
-        '    GROUP BY "MaDiaDiem","MaMonAn","BuaAn"'
-        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" AND oc."BuaAn"=t."BuaAn" '
+        '    GROUP BY "MaDiaDiem","MaMonAn"'
+        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" '
         "WHERE t.\"ChuKyNgay\"=%s AND t.\"TrangThai\"='active' "
         "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
         'AND (t."SoSuatDuKien" IS NULL OR t."SoSuatDuKien"=0 '
         '     OR COALESCE(oc.cnt,0) < t."SoSuatDuKien") '
-        "AND ((t.\"BuaAn\"='Sáng' AND v.\"BuaSang\"=TRUE) OR "
-        "     (t.\"BuaAn\"='Trưa' AND v.\"BuaTrua\"=TRUE) OR "
-        "     (t.\"BuaAn\"='Chiều' AND v.\"BuaChieu\"=TRUE)) "
-        'ORDER BY v."TenViTri",t."BuaAn",m."TenMonAn"',
+        'ORDER BY v."TenViTri",m."TenMonAn"',
         c, params=[today, chu_ky]
     )
     c.close()
