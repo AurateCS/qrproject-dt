@@ -482,9 +482,17 @@ def get_thucdon_available(ma_vitri, chu_ky_ngay):
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'LEFT JOIN menu mn ON mn."Ngay"=%s '
         '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
+        'LEFT JOIN ('
+        '    SELECT "MaDiaDiem","MaMonAn","BuaAn",COUNT(*) AS cnt '
+        '    FROM datmon '
+        '    WHERE "Ngay"=CURRENT_DATE AND "TrangThai"=\'active\' '
+        '    GROUP BY "MaDiaDiem","MaMonAn","BuaAn"'
+        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" AND oc."BuaAn"=t."BuaAn" '
         'WHERE t."MaViTri"=%s AND t."ChuKyNgay"=%s '
         "AND t.\"TrangThai\"='active' "
         "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
+        'AND (t."SoSuatDuKien" IS NULL OR t."SoSuatDuKien"=0 '
+        '     OR COALESCE(oc.cnt,0) < t."SoSuatDuKien") '
         'ORDER BY t."BuaAn",m."TenMonAn"',
         c, params=[today, ma_vitri, chu_ky_ngay]
     )
@@ -538,8 +546,16 @@ def get_thucdon_hom_nay():
         'JOIN vitri v ON t."MaViTri"=v."MaViTri" '
         'LEFT JOIN menu mn ON mn."Ngay"=%s '
         '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
+        'LEFT JOIN ('
+        '    SELECT "MaDiaDiem","MaMonAn","BuaAn",COUNT(*) AS cnt '
+        '    FROM datmon '
+        '    WHERE "Ngay"=CURRENT_DATE AND "TrangThai"=\'active\' '
+        '    GROUP BY "MaDiaDiem","MaMonAn","BuaAn"'
+        ') oc ON oc."MaDiaDiem"=t."MaViTri" AND oc."MaMonAn"=t."MaMonAn" AND oc."BuaAn"=t."BuaAn" '
         "WHERE t.\"ChuKyNgay\"=%s AND t.\"TrangThai\"='active' "
         "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
+        'AND (t."SoSuatDuKien" IS NULL OR t."SoSuatDuKien"=0 '
+        '     OR COALESCE(oc.cnt,0) < t."SoSuatDuKien") '
         "AND ((t.\"BuaAn\"='Sáng' AND v.\"BuaSang\"=TRUE) OR "
         "     (t.\"BuaAn\"='Trưa' AND v.\"BuaTrua\"=TRUE) OR "
         "     (t.\"BuaAn\"='Chiều' AND v.\"BuaChieu\"=TRUE)) "
