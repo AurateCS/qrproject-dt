@@ -11,7 +11,7 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 update_user_password, toggle_admin, get_sidebar,
                 get_config, set_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
                 get_thucdon_hom_nay, get_vitri_detail, check_duplicate_order,
-                update_thucdon, get_monan_used_in_cycle)
+                update_thucdon)
 from auth import create_session, validate_session, delete_session
 
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
@@ -769,13 +769,13 @@ if current_page == "qlthucdon":
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
 
-    # Add dish — each location gets exactly 1 food item; no two locations share the same item
+    # Add dish — each location can have up to 3 choices per meal slot
+    MAX_CHOICES = 3
     active_codes = set(df_slot[df_slot["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot.empty else set()
-    if active_codes:
-        st.caption("✅ Đã có món ăn cho khung giờ này. Chọn món trong bảng trên để chỉnh sửa hoặc thay thế.")
+    if len(active_codes) >= MAX_CHOICES:
+        st.caption(f"✅ Đã có {len(active_codes)} món cho khung giờ này (tối đa {MAX_CHOICES}). Chọn món trong bảng trên để chỉnh sửa.")
     else:
-        taken_elsewhere = get_monan_used_in_cycle(chu_ky_ngay, bua_an_sel, ma_vitri)
-        available = {k: v for k, v in monan_opts.items() if v not in all_codes and v not in taken_elsewhere}
+        available = {k: v for k, v in monan_opts.items() if v not in all_codes}
         if available:
             with st.form("add_thucdon"):
                 sel_add = st.selectbox("Thêm món vào thực đơn", list(available.keys()))
@@ -791,7 +791,7 @@ if current_page == "qlthucdon":
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
         else:
-            st.caption("Không còn món ăn khả dụng cho khung giờ này (các món đã được dùng ở địa điểm khác).")
+            st.caption("Không còn món ăn khả dụng cho khung giờ này.")
     st.stop()
 
 # --- Thêm Món Ăn page (admin only) ---
