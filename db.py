@@ -517,17 +517,37 @@ def get_sidebar(username=''):
             ],
         },
         {
-            "section": "Quản Lý",
+            "section": "Thực Đơn",
             "items": [
-                {"label": "📅 Thực Đơn",    "key": "qlthucdon", "admin": True},
+                {"label": "📅 Thực Đơn", "key": "qlthucdon", "admin": True},
+            ],
+        },
+        {
+            "section": "Món Ăn",
+            "items": [
                 {"label": "🍱 Món Ăn",      "key": "qlmonan",   "admin": True},
                 {"label": "➕ Thêm Món Ăn", "key": "themmonan", "admin": True},
-                {"label": "📍 Địa Điểm",    "key": "qlvitri",   "admin": True},
+            ],
+        },
+        {
+            "section": "Địa Điểm",
+            "items": [
+                {"label": "📍 Địa Điểm",     "key": "qlvitri",   "admin": True},
                 {"label": "➕ Thêm Địa Điểm","key": "themvitri", "admin": True},
+            ],
+        },
+        {
+            "section": "Công Ty",
+            "items": [
                 {"label": "🏢 Công Ty",     "key": "qlcongty",  "admin": True},
                 {"label": "➕ Thêm Công Ty","key": "themcongty","admin": True},
-                {"label": "👥 Tài Khoản",   "key": "taikhoan",  "admin": True},
-                {"label": "📝 Đăng Ký",     "key": "dangnhap",  "admin": True},
+            ],
+        },
+        {
+            "section": "Tài Khoản",
+            "items": [
+                {"label": "👥 Tài Khoản", "key": "taikhoan",  "admin": True},
+                {"label": "📝 Đăng Ký",   "key": "dangnhap",  "admin": True},
             ],
         },
     ]
