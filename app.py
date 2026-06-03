@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit_extras.let_it_rain import rain
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, time as _time
 from io import BytesIO
 import time
 import pandas as pd
@@ -565,7 +565,7 @@ if current_page == "order":
     now_time = datetime.now().time()
     if not df_avail.empty:
         df_avail = df_avail[df_avail["ThoiGianBatDau"].apply(
-            lambda t: t is None or t <= now_time
+            lambda t: not isinstance(t, _time) or t <= now_time
         )].reset_index(drop=True)
 
     if df_avail.empty:
