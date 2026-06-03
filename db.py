@@ -437,9 +437,22 @@ def get_thucdon(ma_vitri, chu_ky_ngay, bua_an, show_all=False):
     return df
 
 
+@st.cache_data(ttl=60)
+def get_monan_used_in_cycle(chu_ky_ngay, bua_an, exclude_vitri):
+    c = get_conn()
+    df = pd.read_sql(
+        'SELECT DISTINCT t."MaMonAn" FROM thucdon t '
+        'WHERE t."ChuKyNgay"=%s AND t."BuaAn"=%s AND t."MaViTri"!=%s AND t."TrangThai"=\'active\'',
+        c, params=[chu_ky_ngay, bua_an, exclude_vitri]
+    )
+    c.close()
+    return set(df["MaMonAn"].tolist())
+
+
 def _clear_thucdon_cache():
     get_thucdon.clear()
     get_thucdon_hom_nay.clear()
+    get_monan_used_in_cycle.clear()
 
 
 def insert_thucdon(ma_vitri, chu_ky_ngay, bua_an, ma_monan, actor, thoi_gian=None, so_suat=None):
@@ -520,6 +533,7 @@ def get_sidebar(username=''):
                 items.append({
                     "label": label,
                     "key": child["controller"],
+                    "id": child["sidebar"],
                     "admin": bool(child["adm"]),
                 })
             if items:

@@ -11,7 +11,7 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 update_user_password, toggle_admin, get_sidebar,
                 get_config, set_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
                 get_thucdon_hom_nay, get_vitri_detail, check_duplicate_order,
-                update_thucdon)
+                update_thucdon, get_monan_used_in_cycle)
 from auth import create_session, validate_session, delete_session
 
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
@@ -742,25 +742,29 @@ if current_page == "qlthucdon":
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
 
-    # Add dish
+    # Add dish — each location gets exactly 1 food item; no two locations share the same item
     active_codes = set(df_slot[df_slot["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot.empty else set()
-    available = {k: v for k, v in monan_opts.items() if v not in all_codes}
-    if available:
-        with st.form("add_thucdon"):
-            sel_add = st.selectbox("Thêm món vào thực đơn", list(available.keys()))
-            ac1, ac2 = st.columns(2)
-            tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
-            so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
-            if st.form_submit_button("➕ Thêm", use_container_width=True):
-                try:
-                    insert_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, available[sel_add], actor,
-                                   tgbd_add, int(so_suat_add) if so_suat_add else None)
-                    st.success("Đã thêm!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
+    if active_codes:
+        st.caption("✅ Đã có món ăn cho khung giờ này. Chọn món trong bảng trên để chỉnh sửa hoặc thay thế.")
     else:
-        st.caption("Tất cả món ăn đã được thêm vào khung giờ này.")
+        taken_elsewhere = get_monan_used_in_cycle(chu_ky_ngay, bua_an_sel, ma_vitri)
+        available = {k: v for k, v in monan_opts.items() if v not in all_codes and v not in taken_elsewhere}
+        if available:
+            with st.form("add_thucdon"):
+                sel_add = st.selectbox("Thêm món vào thực đơn", list(available.keys()))
+                ac1, ac2 = st.columns(2)
+                tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
+                so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
+                if st.form_submit_button("➕ Thêm", use_container_width=True):
+                    try:
+                        insert_thucdon(ma_vitri, chu_ky_ngay, bua_an_sel, available[sel_add], actor,
+                                       tgbd_add, int(so_suat_add) if so_suat_add else None)
+                        st.success("Đã thêm!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+        else:
+            st.caption("Không còn món ăn khả dụng cho khung giờ này (các món đã được dùng ở địa điểm khác).")
     st.stop()
 
 # --- Thêm Món Ăn page (admin only) ---
