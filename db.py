@@ -452,6 +452,7 @@ def get_monan_used_in_cycle(chu_ky_ngay, bua_an, exclude_vitri):
 def _clear_thucdon_cache():
     get_thucdon.clear()
     get_thucdon_hom_nay.clear()
+    get_thucdon_available.clear()
     get_monan_used_in_cycle.clear()
 
 
@@ -469,21 +470,81 @@ def insert_thucdon(ma_vitri, chu_ky_ngay, bua_an, ma_monan, actor, thoi_gian=Non
     _clear_thucdon_cache()
 
 
+@st.cache_data(ttl=60)
+def get_thucdon_available(ma_vitri, chu_ky_ngay):
+    from datetime import date as _date
+    today = str(_date.today())
+    c = get_conn()
+    df = pd.read_sql(
+        'SELECT t."Id",t."MaMonAn",t."BuaAn",t."ThoiGianBatDau",t."SoSuatDuKien",'
+        'm."TenMonAn",m."DonGia" '
+        'FROM thucdon t '
+        'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
+        'LEFT JOIN menu mn ON mn."Ngay"=%s '
+        '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
+        'WHERE t."MaViTri"=%s AND t."ChuKyNgay"=%s '
+        "AND t.\"TrangThai\"='active' "
+        "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
+        'ORDER BY t."BuaAn",m."TenMonAn"',
+        c, params=[today, ma_vitri, chu_ky_ngay]
+    )
+    c.close()
+
+    def _td_to_time(val):
+        if val is None:
+            return None
+        if hasattr(val, 'total_seconds'):
+            secs = int(val.total_seconds())
+            h, rem = divmod(secs, 3600)
+            m = rem // 60
+            return datetime(2000, 1, 1, h, m).time()
+        if hasattr(val, 'hour'):
+            return val
+        return None
+
+    df["ThoiGianBatDau"] = df["ThoiGianBatDau"].apply(_td_to_time)
+    return df
+
+
+def finish_thucdon_today(ma_vitri, ma_monan, actor):
+    from datetime import date as _date
+    today = _date.today()
+    now = _now()
+    c = get_conn()
+    cur = c.cursor()
+    cur.execute(
+        'INSERT INTO menu ("Ngay","MaDiaDiem","MaMonAn","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") '
+        "VALUES (%s,%s,%s,'done',%s,%s,%s,%s) "
+        'ON CONFLICT ("Ngay","MaDiaDiem","MaMonAn") DO UPDATE '
+        'SET "TrangThai"=\'done\',\"NgaySua\"=%s,\"NguoiSua\"=%s',
+        (today, ma_vitri, ma_monan, now, actor, now, actor, now, actor)
+    )
+    c.commit()
+    c.close()
+    get_thucdon_available.clear()
+    get_thucdon_hom_nay.clear()
+
+
 @st.cache_data(ttl=120)
 def get_thucdon_hom_nay():
     chu_ky = get_chu_ky_hom_nay()
+    from datetime import date as _date
+    today = str(_date.today())
     c = get_conn()
     df = pd.read_sql(
         'SELECT v."TenViTri",t."BuaAn",m."TenMonAn",m."DonGia",m."HinhAnh" '
         'FROM thucdon t '
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'JOIN vitri v ON t."MaViTri"=v."MaViTri" '
+        'LEFT JOIN menu mn ON mn."Ngay"=%s '
+        '    AND mn."MaDiaDiem"=t."MaViTri" AND mn."MaMonAn"=t."MaMonAn" '
         "WHERE t.\"ChuKyNgay\"=%s AND t.\"TrangThai\"='active' "
+        "AND (mn.\"TrangThai\" IS NULL OR mn.\"TrangThai\"!='done') "
         "AND ((t.\"BuaAn\"='Sáng' AND v.\"BuaSang\"=TRUE) OR "
         "     (t.\"BuaAn\"='Trưa' AND v.\"BuaTrua\"=TRUE) OR "
         "     (t.\"BuaAn\"='Chiều' AND v.\"BuaChieu\"=TRUE)) "
         'ORDER BY v."TenViTri",t."BuaAn",m."TenMonAn"',
-        c, params=[chu_ky]
+        c, params=[today, chu_ky]
     )
     c.close()
     return df, chu_ky

@@ -11,7 +11,7 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 update_user_password, toggle_admin, get_sidebar,
                 get_config, set_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
                 get_thucdon_hom_nay, get_vitri_detail, check_duplicate_order,
-                update_thucdon)
+                update_thucdon, get_thucdon_available, finish_thucdon_today)
 from auth import create_session, validate_session, delete_session
 
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
@@ -556,83 +556,67 @@ if current_page == "order":
         st.error("Địa điểm không hợp lệ.")
         st.stop()
 
-    ten_vitri, ma_congty, bua_sang, bua_trua, bua_chieu = vitri_info
-    now_hour = datetime.now().hour + datetime.now().minute / 60
-    if now_hour < 9.5:
-        bua_an, serving = "Sáng", bool(bua_sang)
-    elif now_hour < 14:
-        bua_an, serving = "Trưa", bool(bua_trua)
-    else:
-        bua_an, serving = "Chiều", bool(bua_chieu)
+    ten_vitri, ma_congty, *_ = vitri_info
 
     col_info, col_back = st.columns([5, 1])
-    col_info.markdown(f"**{ten_vitri}** · Bữa {bua_an} · {date.today().strftime('%d/%m/%Y')}")
+    col_info.markdown(f"**{ten_vitri}** · {date.today().strftime('%d/%m/%Y')}")
     if col_back.button("↩ Quay lại", use_container_width=True):
         del st.query_params["vitri"]
         st.rerun()
 
-    if not serving:
-        st.info(f"Căng tin này không phục vụ bữa {bua_an}.")
-        st.stop()
-    if check_duplicate_order(actor, date.today(), bua_an, ma_vitri):
-        st.success(f"Bạn đã đặt món bữa **{bua_an}** hôm nay rồi.")
-        st.stop()
-
     chu_ky = get_chu_ky_hom_nay()
-    df_order = get_thucdon(ma_vitri, chu_ky, bua_an)
-    if df_order.empty:
-        st.info("Chưa có thực đơn cho bữa này.")
+    df_avail = get_thucdon_available(ma_vitri, chu_ky)
+
+    # Only show meals whose start time has already passed (NULL = always available)
+    now_time = datetime.now().time()
+    if not df_avail.empty:
+        df_avail = df_avail[df_avail["ThoiGianBatDau"].apply(
+            lambda t: t is None or t <= now_time
+        )].reset_index(drop=True)
+
+    if df_avail.empty:
+        st.info("Chưa có bữa ăn nào bắt đầu phục vụ.")
         st.stop()
 
-    price_lookup = dict(zip(df_order["MaMonAn"], df_order["DonGia"]))
-    menu_options = {
-        f"{r['TenMonAn']}  —  {int(r['DonGia']):,}".replace(",", "."): r["MaMonAn"]
-        for _, r in df_order.iterrows()
+    # Track which BuaAn the employee already ordered today
+    already_ordered = {
+        bua for bua in ["Sáng", "Trưa", "Chiều"]
+        if check_duplicate_order(actor, date.today(), bua, ma_vitri)
     }
-    with st.form("order_form"):
-        sel_label = st.radio("Chọn món:", list(menu_options.keys()))
-        if st.form_submit_button("✅ Đặt món", use_container_width=True):
-            ma_monan = menu_options[sel_label]
-            don_gia  = int(price_lookup[ma_monan])
-            try:
-                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan, actor, 1, don_gia, actor, bua_an)
-                st.success(f"Đặt món thành công! **{sel_label.split('  —  ')[0]}** · Bữa {bua_an}")
-                st.balloons()
-                # rain(emoji="🐷", font_size=50, falling_speed=3, animation_length="infinite")
-                # import base64, pathlib
-                # _img_b64 = base64.b64encode(pathlib.Path("lg_ebb42c5c23d5-jump-scare-feat.jpg").read_bytes()).decode()
-                # _snd_b64 = base64.b64encode(pathlib.Path("freesound_community-jumpscare-94984.mp3").read_bytes()).decode()
-                # st.html(f"""
-# <style>
-# @keyframes jumpscare {{
-#     0%   {{ opacity: 0; transform: scale(0.2); }}
-#     15%  {{ opacity: 1; transform: scale(1.25) rotate(-4deg); }}
-#     30%  {{ transform: scale(1.0) rotate(4deg); }}
-#     45%  {{ transform: scale(1.15) rotate(-2deg); }}
-#     60%  {{ transform: scale(1.0); opacity: 1; }}
-#     85%  {{ opacity: 1; }}
-#     100% {{ opacity: 0; transform: scale(0.9); }}
-# }}
-# .js-overlay {{
-#     position: fixed; top: 0; left: 0;
-#     width: 100vw; height: 100vh;
-#     background: rgba(0,0,0,0.88);
-#     z-index: 9999999;
-#     display: flex; align-items: center; justify-content: center;
-#     animation: jumpscare 1.8s ease-in-out forwards;
-#     animation-delay: 0.2s;
-#     opacity: 0;
-#     pointer-events: none;
-# }}
-# .js-face {{ max-width: 90vw; max-height: 90vh; object-fit: contain; }}
-# </style>
-# <div class="js-overlay"><img class="js-face" src="data:image/jpeg;base64,{_img_b64}"></div>
-# <audio autoplay><source src="data:audio/mpeg;base64,{_snd_b64}" type="audio/mpeg"></audio>
-# """)
-                # time.sleep(0.3)
-                # rain(emoji="🥓", font_size=50, falling_speed=3, animation_length="infinite")
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
+    if already_ordered:
+        st.caption("Đã đặt: " + ", ".join(
+            f"Bữa {b}" for b in ["Sáng", "Trưa", "Chiều"] if b in already_ordered
+        ))
+
+    bua_order = ["Sáng", "Trưa", "Chiều"]
+    available_buas = [
+        b for b in bua_order
+        if b in df_avail["BuaAn"].values and b not in already_ordered
+    ]
+
+    if not available_buas:
+        st.success("Bạn đã đặt tất cả các bữa ăn có sẵn hôm nay.")
+        st.stop()
+
+    for bua_an in available_buas:
+        bua_df = df_avail[df_avail["BuaAn"] == bua_an]
+        st.markdown(f"**Bữa {bua_an}**")
+        price_lookup = dict(zip(bua_df["MaMonAn"], bua_df["DonGia"]))
+        menu_options = {
+            f"{r['TenMonAn']}  —  {int(r['DonGia']):,}".replace(",", "."): r["MaMonAn"]
+            for _, r in bua_df.iterrows()
+        }
+        with st.form(f"order_form_{bua_an}"):
+            sel_label = st.radio("Chọn món:", list(menu_options.keys()))
+            if st.form_submit_button(f"✅ Đặt Bữa {bua_an}", use_container_width=True):
+                ma_monan = menu_options[sel_label]
+                don_gia = int(price_lookup[ma_monan])
+                try:
+                    insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan, actor, 1, don_gia, actor, bua_an)
+                    st.success(f"Đặt món thành công! **{sel_label.split('  —  ')[0]}** · Bữa {bua_an}")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Quản Lý Thực Đơn page (admin only) ---
@@ -658,12 +642,12 @@ if current_page == "qlthucdon":
     ref_str = get_config('ngay_bat_dau_chu_ky') or str(date.today())
     ref_date = date.fromisoformat(ref_str.strip())
     today_cycle = get_chu_ky_hom_nay()
-    st.info(f"Hôm nay là **Ngày {today_cycle}** trong chu kỳ 2 tuần.")
+    st.info(f"Hôm nay là **{day_labels[today_cycle - 1]}** (Ngày {today_cycle} trong chu kỳ 2 tuần).")
 
     # Filters
     day_names = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
     day_labels = [
-        f"Ngày {i} — {'Tuần 1' if i <= 7 else 'Tuần 2'} {day_names[(ref_date + timedelta(days=i-1)).weekday()]}"
+        f"{(ref_date + timedelta(days=i-1)).strftime('%d/%m')} ({day_names[(ref_date + timedelta(days=i-1)).weekday()]})"
         for i in range(1, 15)
     ]
 
@@ -743,11 +727,16 @@ if current_page == "qlthucdon":
 
             with tab_status:
                 with st.form("status_thucdon"):
-                    b1, b2 = st.columns(2)
-                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
+                    b1, b2, b3 = st.columns(3)
+                    do_done     = b1.form_submit_button("🏁 Kết thúc hôm nay", use_container_width=True)
+                    do_inactive = b2.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b3.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        if do_inactive:
+                        if do_done:
+                            finish_thucdon_today(ma_vitri, row_td["MaMonAn"], actor)
+                            st.success("Đã kết thúc phục vụ hôm nay!")
+                            st.rerun()
+                        elif do_inactive:
                             soft_delete("thucdon", "Id", int(row_td["Id"]), actor)
                             st.success("Đã vô hiệu hóa!")
                             st.rerun()
