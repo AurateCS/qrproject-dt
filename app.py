@@ -91,8 +91,8 @@ def check_login(username, password):
     c = get_conn()
     cursor = c.cursor()
     cursor.execute(
-        "SELECT TaiKhoan, TenTaiKhoan, Adm FROM dangnhap WHERE TaiKhoan = ? AND MatKhau = ? AND TrangThai = 'active'",
-        username, password
+        "SELECT \"TaiKhoan\", \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = %s AND \"MatKhau\" = %s AND \"TrangThai\" = 'active'",
+        (username, password)
     )
     row = cursor.fetchone()
     c.close()
@@ -103,7 +103,7 @@ def check_login(username, password):
 def get_user_info(username):
     c = get_conn()
     cursor = c.cursor()
-    cursor.execute("SELECT TenTaiKhoan, Adm FROM dangnhap WHERE TaiKhoan = ?", username)
+    cursor.execute("SELECT \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = %s", (username,))
     row = cursor.fetchone()
     c.close()
     return row if row else (username, 0)
@@ -113,14 +113,14 @@ def register_user(username, display_name, password, ma_diadiem):
     from datetime import datetime
     c = get_conn()
     cursor = c.cursor()
-    cursor.execute("SELECT TaiKhoan FROM dangnhap WHERE TaiKhoan = ?", username)
+    cursor.execute("SELECT \"TaiKhoan\" FROM dangnhap WHERE \"TaiKhoan\" = %s", (username,))
     if cursor.fetchone():
         c.close()
         return False, "Tài khoản đã tồn tại."
     now = datetime.now()
     cursor.execute(
-        "INSERT INTO dangnhap (TaiKhoan, TenTaiKhoan, Adm, MatKhau, MaDiaDiem, TrangThai, NgayTao, NguoiTao, NgaySua, NguoiSua) VALUES (?, ?, 0, ?, ?, 'active', ?, ?, ?, ?)",
-        username, display_name, password, ma_diadiem, now, username, now, username
+        "INSERT INTO dangnhap (\"TaiKhoan\",\"TenTaiKhoan\",\"Adm\",\"MatKhau\",\"MaDiaDiem\",\"TrangThai\",\"NgayTao\",\"NguoiTao\",\"NgaySua\",\"NguoiSua\") VALUES (%s,%s,0,%s,%s,'active',%s,%s,%s,%s)",
+        (username, display_name, password, ma_diadiem, now, username, now, username)
     )
     c.commit()
     c.close()
@@ -647,7 +647,7 @@ if current_page == "qlthucdon":
 
     # Only show meals the location actually serves
     _c = get_conn(); _cur = _c.cursor()
-    _cur.execute("SELECT BuaSang, BuaTrua, BuaChieu FROM vitri WHERE MaViTri = ?", ma_vitri)
+    _cur.execute("SELECT \"BuaSang\", \"BuaTrua\", \"BuaChieu\" FROM vitri WHERE \"MaViTri\" = %s", (ma_vitri,))
     _vt = _cur.fetchone(); _c.close()
     bua_options = []
     if _vt:
