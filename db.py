@@ -589,7 +589,7 @@ def get_sidebar(username=''):
             children = df[df["sidebar_cha"] == parent["sidebar"]]
             items = []
             for _, child in children.iterrows():
-                icon = child["icon"] or ""
+                icon = "" if pd.isnull(child["icon"]) else str(child["icon"])
                 label = f"{icon} {child['title']}".strip()
                 items.append({
                     "label": label,
