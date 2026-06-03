@@ -221,6 +221,7 @@ def top_header():
 def sidebar_nav():
     nav = get_sidebar(actor)
     with st.sidebar:
+        btn_idx = 0
         for section in nav:
             visible = [i for i in section["items"] if not i["admin"] or is_admin]
             if not visible:
@@ -231,11 +232,12 @@ def sidebar_nav():
                 unsafe_allow_html=True,
             )
             for item in visible:
-                if st.button(item["label"], key=f"sb_{item['key']}", use_container_width=True,
+                if st.button(item["label"], key=f"sb_{btn_idx}", use_container_width=True,
                              type="primary" if current_page == item["key"] else "secondary"):
                     st.query_params["page"] = item["key"]
                     st.query_params["token"] = token
                     st.rerun()
+                btn_idx += 1
             st.divider()
 
 
