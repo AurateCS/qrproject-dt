@@ -628,17 +628,6 @@ if current_page == "qlthucdon":
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 16px 0;'>📅 Quản Lý Thực Đơn</h2>", unsafe_allow_html=True)
 
-    # Cycle config editor
-    with st.expander("⚙️ Cài đặt chu kỳ"):
-        ref_str = get_config('ngay_bat_dau_chu_ky') or str(date.today())
-        ref_cur = date.fromisoformat(ref_str.strip())
-        with st.form("cfg_chu_ky"):
-            new_ref = st.date_input("Ngày bắt đầu chu kỳ (Ngày 1)", value=ref_cur)
-            if st.form_submit_button("Lưu", use_container_width=True):
-                set_config('ngay_bat_dau_chu_ky', str(new_ref))
-                st.success("Đã cập nhật!")
-                st.rerun()
-
     ref_str = get_config('ngay_bat_dau_chu_ky') or str(date.today())
     ref_date = date.fromisoformat(ref_str.strip())
     today_cycle = get_chu_ky_hom_nay()
@@ -649,7 +638,6 @@ if current_page == "qlthucdon":
         f"{(ref_date + timedelta(days=i-1)).strftime('%d/%m')} ({day_names[(ref_date + timedelta(days=i-1)).weekday()]})"
         for i in range(1, 15)
     ]
-    st.info(f"Hôm nay là **{day_labels[today_cycle - 1]}** (Ngày {today_cycle} trong chu kỳ 2 tuần).")
 
     vitri_opts = get_vitri_options()
     col1, col2, col3 = st.columns(3)
