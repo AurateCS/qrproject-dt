@@ -1,0 +1,7 @@
+streamlit
+streamlit-extras
+psycopg2-binary
+pandas
+openpyxl
+requests
+beautifulsoup4

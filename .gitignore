@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+sessions.json
+*.mp3
+*.jpg
+*.jpeg
+*.png
+*.webp
+apptest/
+report.py
+navbar.py
+test.html
+.claude/
