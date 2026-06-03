@@ -475,7 +475,7 @@ if current_page == "thucdon":
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 4px 0;'>📋 Thực Đơn Hôm Nay</h2>", unsafe_allow_html=True)
     df_hom_nay, chu_ky = get_thucdon_hom_nay()
-    st.caption(f"{date.today().strftime('%d/%m/%Y')} — Ngày {chu_ky} trong chu kỳ 2 tuần")
+    st.caption(f"{date.today().strftime('%d/%m/%Y')}")
     if df_hom_nay.empty:
         st.info("Chưa có thực đơn cho hôm nay.")
         st.stop()
