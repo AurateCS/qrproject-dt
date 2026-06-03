@@ -309,6 +309,8 @@ def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, 
     )
     c.commit()
     c.close()
+    get_thucdon_available.clear()
+    get_thucdon_hom_nay.clear()
 
 
 def insert_congty(ma_congty, ten_congty, dia_chi, trang_thai, actor):
