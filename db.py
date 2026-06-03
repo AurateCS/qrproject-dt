@@ -472,6 +472,22 @@ def insert_thucdon(ma_vitri, chu_ky_ngay, ma_monan, actor, thoi_gian=None, so_su
     _clear_thucdon_cache()
 
 
+def _td_to_time(val):
+    if val is None:
+        return None
+    if hasattr(val, 'total_seconds'):
+        try:
+            secs = int(val.total_seconds())
+        except (TypeError, ValueError):
+            return None
+        h, rem = divmod(secs, 3600)
+        m = rem // 60
+        return datetime(2000, 1, 1, h, m).time()
+    if hasattr(val, 'hour'):
+        return val
+    return None
+
+
 @st.cache_data(ttl=60)
 def get_thucdon_available(ma_vitri, chu_ky_ngay):
     from datetime import date as _date
@@ -499,18 +515,6 @@ def get_thucdon_available(ma_vitri, chu_ky_ngay):
         c, params=[today, ma_vitri, chu_ky_ngay]
     )
     c.close()
-
-    def _td_to_time(val):
-        if val is None:
-            return None
-        if hasattr(val, 'total_seconds'):
-            secs = int(val.total_seconds())
-            h, rem = divmod(secs, 3600)
-            m = rem // 60
-            return datetime(2000, 1, 1, h, m).time()
-        if hasattr(val, 'hour'):
-            return val
-        return None
 
     df["ThoiGianBatDau"] = df["ThoiGianBatDau"].apply(_td_to_time)
     return df
@@ -542,7 +546,7 @@ def get_thucdon_hom_nay():
     today = str(_date.today())
     c = get_conn()
     df = pd.read_sql(
-        'SELECT v."TenViTri",m."TenMonAn",m."DonGia",m."HinhAnh" '
+        'SELECT v."TenViTri",m."TenMonAn",m."DonGia",m."HinhAnh",t."ThoiGianBatDau" '
         'FROM thucdon t '
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'JOIN vitri v ON t."MaViTri"=v."MaViTri" '
@@ -562,6 +566,7 @@ def get_thucdon_hom_nay():
         c, params=[today, chu_ky]
     )
     c.close()
+    df["ThoiGianBatDau"] = df["ThoiGianBatDau"].apply(_td_to_time)
     return df, chu_ky
 
 

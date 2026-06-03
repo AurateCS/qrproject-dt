@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit_extras.let_it_rain import rain
-from datetime import date, timedelta, datetime, time as _time
+from datetime import date, timedelta, datetime, time as _time, timezone
 from io import BytesIO
 import time
 import pandas as pd
@@ -14,6 +14,8 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 get_thucdon_hom_nay, get_vitri_detail,
                 update_thucdon, get_thucdon_available, finish_thucdon_today)
 from auth import create_session, validate_session, delete_session
+
+_VN_TZ = timezone(timedelta(hours=7))
 
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
 
@@ -476,6 +478,11 @@ if current_page == "thucdon":
     st.markdown("<h2 style='margin:8px 0 4px 0;'>📋 Thực Đơn Hôm Nay</h2>", unsafe_allow_html=True)
     df_hom_nay, chu_ky = get_thucdon_hom_nay()
     st.caption(f"{date.today().strftime('%d/%m/%Y')}")
+    if not df_hom_nay.empty:
+        _now_vn = datetime.now(tz=_VN_TZ).time()
+        df_hom_nay = df_hom_nay[df_hom_nay["ThoiGianBatDau"].apply(
+            lambda t: not isinstance(t, _time) or t <= _now_vn
+        )].reset_index(drop=True)
     if df_hom_nay.empty:
         st.info("Chưa có thực đơn cho hôm nay.")
         st.stop()
@@ -562,7 +569,8 @@ if current_page == "order":
     df_avail = get_thucdon_available(ma_vitri, chu_ky)
 
     # Only show meals whose start time has already passed (NULL = always available)
-    now_time = datetime.now().time()
+    # Use Vietnam time (UTC+7) since stored start times are entered in local time
+    now_time = datetime.now(tz=_VN_TZ).time()
     if not df_avail.empty:
         df_avail = df_avail[df_avail["ThoiGianBatDau"].apply(
             lambda t: not isinstance(t, _time) or t <= now_time
