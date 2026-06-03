@@ -890,29 +890,25 @@ if current_page == "themthucdon":
     all_codes = set(df_slot["MaMonAn"].tolist()) if not df_slot.empty else set()
     active_codes = set(df_slot[df_slot["TrangThai"] == "active"]["MaMonAn"].tolist()) if not df_slot.empty else set()
 
-    MAX_CHOICES = 3
-    st.markdown(f"**{vitri_sel} · {chu_ky_sel}** — hiện có {len(active_codes)}/{MAX_CHOICES} món")
+    st.markdown(f"**{vitri_sel} · {chu_ky_sel}** — hiện có {len(active_codes)} món")
 
-    if len(active_codes) >= MAX_CHOICES:
-        st.caption(f"Đã đủ {MAX_CHOICES} món cho ngày này. Vào Quản Lý Thực Đơn để chỉnh sửa.")
+    available = {k: v for k, v in monan_opts.items() if v not in all_codes}
+    if available:
+        with st.form("add_thucdon"):
+            sel_add = st.selectbox("Món ăn", list(available.keys()))
+            ac1, ac2 = st.columns(2)
+            tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
+            so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
+            if st.form_submit_button("➕ Thêm", use_container_width=True):
+                try:
+                    insert_thucdon(ma_vitri, chu_ky_ngay, available[sel_add], actor,
+                                   tgbd_add, int(so_suat_add) if so_suat_add else None)
+                    st.success("Đã thêm!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
     else:
-        available = {k: v for k, v in monan_opts.items() if v not in all_codes}
-        if available:
-            with st.form("add_thucdon"):
-                sel_add = st.selectbox("Món ăn", list(available.keys()))
-                ac1, ac2 = st.columns(2)
-                tgbd_add = ac1.time_input("Giờ Bắt Đầu", value=None)
-                so_suat_add = ac2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=0)
-                if st.form_submit_button("➕ Thêm", use_container_width=True):
-                    try:
-                        insert_thucdon(ma_vitri, chu_ky_ngay, available[sel_add], actor,
-                                       tgbd_add, int(so_suat_add) if so_suat_add else None)
-                        st.success("Đã thêm!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-        else:
-            st.caption("Không còn món ăn khả dụng cho ngày này.")
+        st.caption("Không còn món ăn khả dụng cho ngày này.")
     st.stop()
 
 # --- Thêm Món Ăn page (admin only) ---
