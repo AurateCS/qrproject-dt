@@ -195,7 +195,9 @@ def load_table(table, show_all=False):
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime("%d/%m/%Y %H:%M")
         elif df[col].dtype == "float64" and not df[col].dropna().empty and df[col].dropna().apply(float.is_integer).all():
-            df[col] = df[col].astype("Int64")
+            df[col] = df[col].apply(lambda x: str(int(x)) if pd.notna(x) else "")
+        elif df[col].dtype in ("int64", "int32", "int16", "Int64"):
+            df[col] = df[col].apply(lambda x: str(int(x)) if pd.notna(x) else "")
     return df
 
 

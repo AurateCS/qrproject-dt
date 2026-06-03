@@ -633,6 +633,7 @@ if current_page == "qldatmon":
         "DonGia": "Đơn Giá", "ThanhTien": "Thành Tiền", "TrangThai": "Trạng Thái"
     })
     disp_dm["Ngày"] = pd.to_datetime(disp_dm["Ngày"]).dt.strftime("%d/%m/%Y")
+    disp_dm["SL"] = disp_dm["SL"].apply(lambda x: str(int(x)) if pd.notna(x) else "")
     for col in ["Đơn Giá", "Thành Tiền"]:
         disp_dm[col] = disp_dm[col].apply(lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x)
 
@@ -799,6 +800,7 @@ if current_page == "qlthucdon":
             disp_cols["TrangThai"] = "Trạng Thái"
         disp = df_slot[list(disp_cols.keys())].rename(columns=disp_cols)
         disp["Đơn Giá"] = disp["Đơn Giá"].apply(lambda x: f"{int(x):,}".replace(",", ".") if x is not None else x)
+        disp["Số Suất"] = disp["Số Suất"].apply(lambda x: str(int(x)) if pd.notna(x) and x is not None else "")
         event_td = st.dataframe(disp, use_container_width=True, hide_index=True,
                                 on_select="rerun", selection_mode="single-row")
         sel_td = event_td.selection.rows
