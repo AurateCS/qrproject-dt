@@ -491,21 +491,48 @@ if current_page == "thucdon":
         locations = [loc_sel]
     bua_order_list = ["Sáng", "Trưa", "Chiều"]
     for loc in locations:
-        st.markdown(f"### 📍 {loc}")
+        st.markdown(f"""
+        <div style='background:linear-gradient(135deg,#EE1C25,#b01018);color:white;
+                    padding:12px 18px;border-radius:10px;margin:20px 0 14px 0;
+                    display:flex;align-items:center;gap:10px;'>
+            <span style='font-size:1.3rem;'>📍</span>
+            <span style='font-size:1.1rem;font-weight:700;'>{loc}</span>
+        </div>""", unsafe_allow_html=True)
         loc_df = df_hom_nay[df_hom_nay["TenViTri"] == loc]
         buas = [b for b in bua_order_list if b in loc_df["BuaAn"].values]
         cols = st.columns(len(buas))
         for i, bua in enumerate(buas):
             bua_df = loc_df[loc_df["BuaAn"] == bua]
             with cols[i]:
-                st.markdown(f"**Bữa {bua}**")
                 for _, row in bua_df.iterrows():
                     don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
-                    st.markdown(f"- {row['TenMonAn']} &nbsp;*{don_gia_str}*", unsafe_allow_html=True)
                     img_url = resolve_image(row.get("HinhAnh"))
-                    if img_url:
-                        st.markdown(f'<a href="{img_url}" target="_blank"><img src="{img_url}" width="160" style="border-radius:6px;cursor:pointer;"></a>', unsafe_allow_html=True)
-        st.divider()
+                    img_html = (
+                        f'<img src="{img_url}" style="width:100%;height:170px;'
+                        f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
+                        if img_url else
+                        '<div style="width:100%;height:100px;background:#f5f5f5;'
+                        'border-radius:10px 10px 0 0;display:flex;align-items:center;'
+                        'justify-content:center;font-size:2rem;">🍽️</div>'
+                    )
+                    st.markdown(f"""
+                    <div style='border:1px solid #eee;border-radius:10px;overflow:hidden;
+                                box-shadow:0 2px 10px rgba(0,0,0,0.07);margin-bottom:10px;'>
+                        {img_html}
+                        <div style='padding:12px 14px;'>
+                            <div style='font-size:0.68rem;font-weight:700;color:#EE1C25;
+                                        text-transform:uppercase;letter-spacing:1.2px;
+                                        margin-bottom:5px;'>Bữa {bua}</div>
+                            <div style='font-weight:700;font-size:1rem;color:#1a1a1a;
+                                        margin-bottom:8px;line-height:1.3;'>{row['TenMonAn']}</div>
+                            <span style='background:#EE1C25;color:white;padding:3px 12px;
+                                         border-radius:20px;font-size:0.82rem;font-weight:600;'>
+                                {don_gia_str} ₫
+                            </span>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+        st.markdown("<div style='margin:8px 0 4px;border-top:1px solid #eee;'></div>",
+                    unsafe_allow_html=True)
     st.stop()
 
 # --- Đặt Món (order) page ---
