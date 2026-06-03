@@ -632,6 +632,7 @@ if current_page == "qldatmon":
         "TenTaiKhoan": "Nhân Viên", "SoLuong": "SL",
         "DonGia": "Đơn Giá", "ThanhTien": "Thành Tiền", "TrangThai": "Trạng Thái"
     })
+    disp_dm["Ngày"] = pd.to_datetime(disp_dm["Ngày"]).dt.strftime("%d/%m/%Y")
     for col in ["Đơn Giá", "Thành Tiền"]:
         disp_dm[col] = disp_dm[col].apply(lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x)
 
@@ -648,7 +649,7 @@ if current_page == "qldatmon":
         st.caption("Chọn một dòng để chỉnh sửa.")
     else:
         r = raw_dm.iloc[sel_dm[0]]
-        st.markdown(f"**Đang chỉnh sửa:** {r['TenMonAn']} — {r['TenTaiKhoan']} ({r['Ngay']})")
+        st.markdown(f"**Đang chỉnh sửa:** {r['TenMonAn']} — {r['TenTaiKhoan']} ({pd.Timestamp(r['Ngay']).strftime('%d/%m/%Y')})")
 
         vitri_opts_dm   = get_vitri_options()
         monan_opts_dm, prices_dm = get_monan_options()

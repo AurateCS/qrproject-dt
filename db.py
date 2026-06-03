@@ -123,6 +123,9 @@ def load(proc, from_date, to_date, show_all=False):
             df[vn] = df[vn].apply(lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x)
     for col in df.select_dtypes(include="number").columns:
         df[col] = df[col].apply(lambda x: str(int(x)) if pd.notna(x) else x)
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime("%d/%m/%Y")
     return df
 
 
@@ -186,7 +189,7 @@ def load_table(table, show_all=False):
     c.close()
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M")
+            df[col] = df[col].dt.strftime("%d/%m/%Y %H:%M")
         elif df[col].dtype == "float64" and not df[col].dropna().empty and df[col].dropna().apply(float.is_integer).all():
             df[col] = df[col].astype("Int64")
     return df
