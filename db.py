@@ -110,6 +110,8 @@ def load(proc, from_date, to_date, show_all=False):
         vn = column_labels.get(col, col)
         if vn in df.columns:
             df[vn] = df[vn].apply(lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x)
+    for col in df.select_dtypes(include="number").columns:
+        df[col] = df[col].apply(lambda x: str(int(x)) if pd.notna(x) else x)
     return df
 
 
