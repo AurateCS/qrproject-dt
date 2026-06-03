@@ -4,15 +4,19 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-
-
 def _now():
     return datetime.now().replace(microsecond=0)
 
 
+def _get_db_url():
+    try:
+        return st.secrets["DATABASE_URL"]
+    except Exception:
+        return os.environ.get("DATABASE_URL", "")
+
+
 def get_conn():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(_get_db_url())
 
 
 column_labels = {

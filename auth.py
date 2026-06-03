@@ -1,14 +1,15 @@
-import streamlit as st
 import uuid
 import os
 from datetime import datetime, timedelta
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-
-
 def _get_conn():
     import psycopg2
-    return psycopg2.connect(DATABASE_URL)
+    import streamlit as st
+    try:
+        url = st.secrets["DATABASE_URL"]
+    except Exception:
+        url = os.environ.get("DATABASE_URL", "")
+    return psycopg2.connect(url)
 
 
 def create_session(username):
