@@ -6,8 +6,9 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; background: #000; overflow: hidden; }
-#qr-reader { width: 100%; }
-video { object-fit: cover !important; }
+#qr-reader { width: 100%; aspect-ratio: 1; overflow: hidden; }
+#qr-reader__scan_region { height: 100% !important; }
+video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
 /* Hide the rectangular dark shading panels */
 #qr-reader__scan_region__box_top,
 #qr-reader__scan_region__box_bottom,
@@ -40,7 +41,7 @@ window.addEventListener("message", function(event) {
     setTimeout(function() {
       var container = document.getElementById("qr-reader");
       var w = container.clientWidth || window.innerWidth || 300;
-      setFrameHeight(w + 16);
+      setFrameHeight(w + 4);
 
       var sz = Math.round(w * 0.75);
       var lastResult = "";
