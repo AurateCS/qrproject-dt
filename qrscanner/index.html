@@ -8,7 +8,7 @@
 html, body { width: 100%; background: #000; overflow: hidden; }
 #qr-reader { width: 100%; }
 #msg { color: #ddd; font-size: 13px; padding: 12px; text-align: center; }
-video { object-fit: cover !important; width: 100% !important; }
+/* Hide scan region decorations only */
 #qr-reader__scan_region > img,
 #qr-reader__scan_region__box_top,
 #qr-reader__scan_region__box_bottom,
@@ -35,16 +35,14 @@ function setComponentValue(v) {
 function setComponentReady() {
   window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
 }
-
 function showMsg(text) {
   document.getElementById("msg").textContent = text;
 }
 
 function startCamera() {
   if (cameraStarted) return;
-
   if (typeof Html5Qrcode === "undefined") {
-    showMsg("Lỗi: không tải được thư viện QR. Kiểm tra kết nối.");
+    showMsg("Lỗi: không tải được thư viện QR.");
     setFrameHeight(80);
     return;
   }
@@ -52,7 +50,6 @@ function startCamera() {
   cameraStarted = true;
   var w = window.innerWidth || 320;
   var sz = Math.round(w * 0.75);
-  setFrameHeight(w + 16);
 
   var scanner = new Html5Qrcode("qr-reader");
   scanner.start(
@@ -66,7 +63,12 @@ function startCamera() {
       }
     }
   ).then(function() {
-    showMsg("");
+    // Let the library finish rendering, then read the actual height it produced
+    setTimeout(function() {
+      var h = document.getElementById("qr-reader").clientHeight;
+      setFrameHeight((h > 50 ? h : w) + 4);
+      showMsg("");
+    }, 400);
   }).catch(function(err) {
     cameraStarted = false;
     showMsg("Lỗi camera: " + err);
@@ -74,13 +76,9 @@ function startCamera() {
   });
 }
 
-// Set visible height immediately
-setFrameHeight(window.innerWidth || 320);
-
-// Script is at bottom of body — DOM already ready, just call directly
+setFrameHeight(300); // give iframe a visible initial height
 setTimeout(startCamera, 200);
 
-// Streamlit render event as fallback
 window.addEventListener("message", function(event) {
   if (event.data && event.data.type === "streamlit:render" && !cameraStarted) {
     setTimeout(startCamera, 200);
