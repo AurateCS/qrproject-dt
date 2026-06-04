@@ -67,6 +67,7 @@ _REPORT_QUERIES = {
         FROM congty c
         LEFT JOIN datmon d ON c."MaCongTy" = d."MaCongTy"
             AND d."Ngay" BETWEEN %s AND %s {status_join}
+        {parent_status}
         GROUP BY c."MaCongTy", c."TenCongTy"
         ORDER BY c."MaCongTy"
     """,
@@ -80,6 +81,7 @@ _REPORT_QUERIES = {
         LEFT JOIN congty c ON v."MaCongTy" = c."MaCongTy"
         LEFT JOIN datmon d ON v."MaViTri" = d."MaDiaDiem"
             AND d."Ngay" BETWEEN %s AND %s {status_join}
+        {parent_status}
         GROUP BY c."MaCongTy", c."TenCongTy", v."MaViTri", v."TenViTri"
         ORDER BY v."MaViTri"
     """,
@@ -95,6 +97,7 @@ _REPORT_QUERIES = {
         LEFT JOIN congty c ON v."MaCongTy" = c."MaCongTy"
         LEFT JOIN datmon d ON dn."TaiKhoan" = d."MaNhanVien"
             AND d."Ngay" BETWEEN %s AND %s {status_join}
+        {parent_status}
         GROUP BY c."MaCongTy", c."TenCongTy", v."MaViTri", v."TenViTri",
                  dn."TaiKhoan", dn."TenTaiKhoan"
         ORDER BY dn."TaiKhoan"
@@ -111,7 +114,9 @@ def load(proc, from_date, to_date, show_all=False):
         params = [str(from_date), str(to_date)]
     else:
         status_join = "" if show_all else "AND d.\"TrangThai\" = 'active'"
-        query = template.format(status_join=status_join)
+        parent_col = {"bc_congty": 'c', "bc_diadiem": 'v', "bc_nhanvien": 'dn'}.get(proc, 'c')
+        parent_status = "" if show_all else f"WHERE {parent_col}.\"TrangThai\" = 'active'"
+        query = template.format(status_join=status_join, parent_status=parent_status)
         params = [str(from_date), str(to_date)]
     c = get_conn()
     df = pd.read_sql(query, c, params=params)
