@@ -587,14 +587,32 @@ if current_page == "order":
     _pending = get_pending_order(actor)
     if _pending and _pending[1] == ma_vitri:
         _p_id, _p_vitri, _p_monan, _p_gia, _p_ten_monan, _p_ten_vitri = _pending
-        st.success(f"Đơn đã được tạo — hãy quét mã QR tại căng tin để xác nhận.")
-        st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{int(_p_gia):,} ₫**".replace(",", "."))
-        st.markdown(
-            "<div style='background:#fff8e1;border:1px solid #ffe082;border-radius:10px;"
-            "padding:18px 20px;margin:16px 0;font-size:1rem;'>"
-            "📱 Quét mã QR tại <b>" + _p_ten_vitri + "</b> để hoàn tất đặt món.</div>",
-            unsafe_allow_html=True,
-        )
+        don_gia_fmt = f"{int(_p_gia):,}".replace(",", ".")
+        st.success(f"Đơn đã được tạo — quét mã QR tại căng tin để xác nhận.")
+        st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{don_gia_fmt} ₫**")
+        st.markdown("**📷 Hướng camera vào mã QR tại căng tin:**")
+
+        from streamlit_qrcode_scanner import qrcode_scanner
+        from urllib.parse import urlparse, parse_qs
+        scanned = qrcode_scanner(key=f"qr_scan_{_p_id}")
+        if scanned:
+            try:
+                _params = parse_qs(urlparse(scanned).query)
+                _vitri_scanned = _params.get("vitri", [None])[0]
+            except Exception:
+                _vitri_scanned = None
+            if not _vitri_scanned:
+                st.error("QR code không hợp lệ.")
+            elif _vitri_scanned != _p_vitri:
+                _vinfo = get_vitri_detail(_vitri_scanned)
+                _ten_scan = _vinfo[0] if _vinfo else _vitri_scanned
+                st.error(f"❌ Sai căng tin! Bạn đã chọn **{_p_ten_vitri}** nhưng quét QR tại **{_ten_scan}**.")
+            else:
+                confirm_pending_order(_p_id, actor)
+                st.success(f"✅ Đặt Món Thành Công! {_p_ten_monan} · {don_gia_fmt} ₫")
+                st.balloons()
+                st.rerun()
+
         if st.button("❌ Hủy đơn", type="secondary"):
             cancel_pending_order(actor)
             st.rerun()
