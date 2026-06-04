@@ -1,91 +1,17 @@
-<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; background: #000; overflow: hidden; }
-#qr-reader { width: 100%; }
-#msg { color: #ddd; font-size: 13px; padding: 12px; text-align: center; }
-/* Hide scan region decorations only */
-#qr-reader__scan_region > img,
-#qr-reader__scan_region__box_top,
-#qr-reader__scan_region__box_bottom,
-#qr-reader__scan_region__box_left,
-#qr-reader__scan_region__box_right { display: none !important; }
-#qr-reader__dashboard,
-#qr-reader__header_message,
-#qr-reader__status_span { display: none !important; }
-</style>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>streamlit-qrcode-scanner</title>
+    <script src="./streamlit-component-lib.js"></script>
+    <script src="./html5-qrcode.min.js"></script>
+    <script src="./main.js"></script>
 </head>
 <body>
-<div id="qr-reader"></div>
-<div id="msg">Đang khởi động camera…</div>
-<script>
-var lastResult = "";
-var cameraStarted = false;
-
-function setFrameHeight(h) {
-  window.parent.postMessage({ type: "streamlit:setFrameHeight", height: h }, "*");
-}
-function setComponentValue(v) {
-  window.parent.postMessage({ type: "streamlit:setComponentValue", value: v, dataType: "json" }, "*");
-}
-function setComponentReady() {
-  window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
-}
-function showMsg(text) {
-  document.getElementById("msg").textContent = text;
-}
-
-function startCamera() {
-  if (cameraStarted) return;
-  if (typeof Html5Qrcode === "undefined") {
-    showMsg("Lỗi: không tải được thư viện QR.");
-    setFrameHeight(80);
-    return;
-  }
-
-  cameraStarted = true;
-  var w = window.innerWidth || 320;
-  var sz = Math.round(w * 0.75);
-
-  var scanner = new Html5Qrcode("qr-reader");
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: sz, height: sz } },
-    function(text) {
-      if (text !== lastResult) {
-        if (navigator.vibrate) navigator.vibrate(200);
-        lastResult = text;
-        setComponentValue(text);
-      }
-    }
-  ).then(function() {
-    // Let the library finish rendering, then read the actual height it produced
-    setTimeout(function() {
-      var h = document.getElementById("qr-reader").clientHeight;
-      setFrameHeight((h > 50 ? h : w) + 4);
-      showMsg("");
-    }, 400);
-  }).catch(function(err) {
-    cameraStarted = false;
-    showMsg("Lỗi camera: " + err);
-    setFrameHeight(80);
-  });
-}
-
-setFrameHeight(300); // give iframe a visible initial height
-setTimeout(startCamera, 200);
-
-window.addEventListener("message", function(event) {
-  if (event.data && event.data.type === "streamlit:render" && !cameraStarted) {
-    setTimeout(startCamera, 200);
-  }
-});
-
-setComponentReady();
-</script>
+    <div id="container">
+        <div id="qr-reader" style="position: relative;"></div>
+        <div id="qr-reader-results"></div>
+    </div>
 </body>
 </html>

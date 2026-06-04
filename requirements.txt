@@ -1,6 +1,5 @@
 streamlit
 streamlit-extras
-streamlit-qrcode-scanner
 psycopg2-binary
 pandas
 openpyxl
