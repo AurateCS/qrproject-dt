@@ -7,7 +7,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; background: #000; overflow: hidden; }
 #qr-reader { width: 100%; }
-#err { color: #fff; font-size: 13px; padding: 12px; display: none; }
+#msg { color: #ccc; font-size: 13px; padding: 12px; text-align: center; }
 video { object-fit: cover !important; width: 100% !important; }
 /* Hide rectangular dark shading panels */
 #qr-reader__scan_region > img,
@@ -23,7 +23,7 @@ video { object-fit: cover !important; width: 100% !important; }
 </head>
 <body>
 <div id="qr-reader"></div>
-<div id="err"></div>
+<div id="msg">Đang khởi động camera…</div>
 <script>
 var lastResult = "";
 var cameraStarted = false;
@@ -38,20 +38,15 @@ function setComponentReady() {
   window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
 }
 
-function showError(msg) {
-  var el = document.getElementById("err");
-  el.style.display = "block";
-  el.textContent = msg;
-  setFrameHeight(60);
+function showMsg(text) {
+  document.getElementById("msg").textContent = text;
 }
 
 function startCamera() {
   if (cameraStarted) return;
   cameraStarted = true;
 
-  var container = document.getElementById("qr-reader");
-  var w = container.clientWidth || window.innerWidth || 320;
-  if (w < 50) w = 320;
+  var w = window.innerWidth || 320;
   var sz = Math.round(w * 0.75);
 
   setFrameHeight(w + 16);
@@ -59,34 +54,38 @@ function startCamera() {
   var scanner = new Html5Qrcode("qr-reader");
   scanner.start(
     { facingMode: "environment" },
-    { fps: 10, qrbox: { width: sz, height: sz }, aspectRatio: 1.0 },
+    { fps: 10, qrbox: { width: sz, height: sz } },
     function(text) {
       if (text !== lastResult) {
         if (navigator.vibrate) navigator.vibrate(200);
         lastResult = text;
+        showMsg("Đã quét: " + text);
         setComponentValue(text);
       }
     }
-  ).catch(function(err) {
+  ).then(function() {
+    showMsg("");
+  }).catch(function(err) {
     cameraStarted = false;
-    showError("Lỗi camera: " + err);
+    showMsg("Lỗi: " + err);
+    setFrameHeight(80);
   });
 }
 
-// Start camera on DOM ready — don't depend solely on streamlit:render
+// Set a visible height immediately so the iframe isn't collapsed
+setFrameHeight(window.innerWidth || 320);
+
 document.addEventListener("DOMContentLoaded", function() {
-  setTimeout(startCamera, 150);
+  setTimeout(startCamera, 200);
 });
 
-// Keep streamlit:render as a fallback
 window.addEventListener("message", function(event) {
   if (event.data && event.data.type === "streamlit:render" && !cameraStarted) {
-    setTimeout(startCamera, 150);
+    setTimeout(startCamera, 200);
   }
 });
 
 setComponentReady();
-setFrameHeight(0);
 </script>
 </body>
 </html>
