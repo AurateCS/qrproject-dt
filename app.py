@@ -593,40 +593,44 @@ if current_page == "order":
     if sel_key not in st.session_state:
         st.session_state[sel_key] = None
 
-    st.markdown("**Chọn món:**")
-    for _, row in df_avail.iterrows():
+    cols = st.columns(3)
+    for i, (_, row) in enumerate(df_avail.iterrows()):
         img_url = resolve_image(row.get("HinhAnh"))
         don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
         is_sel = st.session_state[sel_key] == row["MaMonAn"]
-
-        col_img, col_info, col_btn = st.columns([1, 3, 1])
-        with col_img:
-            if img_url:
-                st.markdown(
-                    f'<a href="{img_url}" target="_blank" rel="noopener noreferrer">'
-                    f'<img src="{img_url}" style="width:100%;aspect-ratio:1/1;object-fit:cover;'
-                    f'border-radius:8px;display:block;cursor:pointer;"></a>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    '<div style="width:100%;aspect-ratio:1/1;background:#f5f5f5;border-radius:8px;'
-                    'display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🍽️</div>',
-                    unsafe_allow_html=True,
-                )
-        with col_info:
-            st.markdown(f"**{row['TenMonAn']}**  \n{don_gia_str} ₫")
-        with col_btn:
+        border = "2px solid #EE1C25" if is_sel else "1px solid #eee"
+        img_html = (
+            f'<img src="{img_url}" style="width:100%;height:130px;'
+            f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
+            if img_url else
+            '<div style="width:100%;height:100px;background:#f5f5f5;'
+            'border-radius:10px 10px 0 0;display:flex;align-items:center;'
+            'justify-content:center;font-size:2rem;">🍽️</div>'
+        )
+        with cols[i % 3]:
+            st.markdown(f"""
+            <div style='border:{border};border-radius:10px;overflow:hidden;
+                        box-shadow:0 2px 10px rgba(0,0,0,0.07);margin-bottom:6px;'>
+                {img_html}
+                <div style='padding:10px 14px;'>
+                    <div style='font-weight:700;font-size:1rem;color:#1a1a1a;
+                                margin-bottom:6px;line-height:1.3;'>{row['TenMonAn']}</div>
+                    <span style='background:#EE1C25;color:white;padding:3px 12px;
+                                 border-radius:20px;font-size:0.82rem;font-weight:600;'>
+                        {don_gia_str} ₫
+                    </span>
+                </div>
+            </div>""", unsafe_allow_html=True)
             if st.button(
-                "✓" if is_sel else "Chọn",
+                "✓ Đã chọn" if is_sel else "Chọn",
                 key=f"pick_{row['MaMonAn']}",
                 type="primary" if is_sel else "secondary",
                 use_container_width=True,
             ):
                 st.session_state[sel_key] = row["MaMonAn"]
                 st.rerun()
-        st.divider()
 
+    st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
     ma_monan_sel = st.session_state.get(sel_key)
     if ma_monan_sel:
         sel_row = df_avail[df_avail["MaMonAn"] == ma_monan_sel].iloc[0]
