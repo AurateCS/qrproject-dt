@@ -614,26 +614,36 @@ if current_page == "order":
         from streamlit_qrcode_scanner import qrcode_scanner
         from urllib.parse import urlparse, parse_qs
 
-        # Fix scanner iframe: make outer frame square and inject CSS inside it for video fill + scan box
+        # Fix scanner using exact html5-qrcode element IDs from the component source
         _cmp.html("""<script>
 (function(){
   var db;
   function fixInner(f){
-    if(f.offsetHeight<80)return;  // skip tiny helper iframes (like this one)
+    if(f.offsetHeight<80)return;
     try{
       var d=f.contentDocument||f.contentWindow.document;
       if(!d||!d.head||d.__sq)return;
       d.__sq=true;
       var s=d.createElement('style');
       s.textContent=
-        // fill square with camera feed, no black bars
-        'video{width:100%!important;height:100%!important;object-fit:cover!important;}'
-        // try to make the scan-region box square via common class/id patterns
-        +'[id*="scan_region"],[id*="scan-region"],[class*="scan_region"],[class*="scan-region"],'
-        +'[id*="qr_box"],[class*="qr_box"],[id*="qr-box"],[class*="qr-box"]'
-        +'{aspect-ratio:1/1!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;}'
-        // hide the dark rgba shading panels outside the scan box
-        +'[style*="background: rgba"],[style*="background:rgba"]{display:none!important;}';
+        // scanner root + scan region fill the square iframe
+        '#qr-reader,#qr-reader__scan_region{'
+        +'width:100%!important;height:100%!important;overflow:hidden!important;}'
+        // video fills square with object-fit:cover; override mobile negative-top offset
+        +'video{width:100%!important;height:100%!important;'
+        +'object-fit:cover!important;position:absolute!important;'
+        +'top:0!important;left:0!important;}'
+        // hide the 4 dark shading panels that frame the rectangular scan zone
+        +'#qr-reader__scan_region__box_top,'
+        +'#qr-reader__scan_region__box_bottom,'
+        +'#qr-reader__scan_region__box_left,'
+        +'#qr-reader__scan_region__box_right{display:none!important;}'
+        // white corner brackets: make square and center them
+        +'#qr-reader__scan_region__scan_frame{'
+        +'width:75%!important;height:75%!important;'
+        +'top:50%!important;left:50%!important;'
+        +'transform:translate(-50%,-50%)!important;'
+        +'margin:0!important;box-sizing:border-box!important;}';
       d.head.appendChild(s);
     }catch(e){}
   }
@@ -641,7 +651,6 @@ if current_page == "order":
     try{
       window.parent.document.querySelectorAll('iframe').forEach(function(f){
         var w=f.offsetWidth;
-        // only target landscape iframes that are at least 100px tall (not the 1px helper)
         if(w>100&&f.offsetHeight>100&&f.offsetHeight<w*0.65){
           f.style.height=w+'px';
         }
