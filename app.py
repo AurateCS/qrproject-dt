@@ -562,6 +562,24 @@ if current_page == "order":
 
     ten_vitri, ma_congty, *_ = vitri_info
 
+    # Success screen shown after QR confirm + rerun
+    if st.session_state.get("order_success"):
+        _s = st.session_state.pop("order_success")
+        st.markdown(f"""
+        <div style='background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #a5d6a7;
+                    border-radius:16px;padding:32px 24px;margin:24px 0;text-align:center;'>
+            <div style='font-size:3.5rem;margin-bottom:10px;'>✅</div>
+            <div style='font-size:1.5rem;font-weight:800;color:#2e7d32;margin-bottom:10px;'>Đặt Món Thành Công!</div>
+            <div style='font-size:1.1rem;color:#1a1a1a;font-weight:600;margin-bottom:4px;'>{_s['ten_monan']}</div>
+            <div style='font-size:0.9rem;color:#555;margin-bottom:12px;'>📍 {_s['ten_vitri']}</div>
+            <div style='display:inline-block;background:#2e7d32;color:white;padding:5px 20px;
+                        border-radius:20px;font-size:1rem;font-weight:700;'>{_s['don_gia']} ₫</div>
+        </div>""", unsafe_allow_html=True)
+        st.balloons()
+        if st.button("🛒 Đặt món mới", type="primary", use_container_width=True):
+            st.rerun()
+        st.stop()
+
     col_info, col_back = st.columns([5, 1])
     col_info.markdown(f"**{ten_vitri}** · {date.today().strftime('%d/%m/%Y')}")
     if col_back.button("↩ Quay lại", use_container_width=True):
@@ -591,6 +609,13 @@ if current_page == "order":
         st.success(f"Đơn đã được tạo — quét mã QR tại căng tin để xác nhận.")
         st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{don_gia_fmt} ₫**")
         st.markdown("**📷 Hướng camera vào mã QR tại căng tin:**")
+        st.markdown("""<style>
+        [data-testid="stCustomComponentV1"] iframe {
+            aspect-ratio: 1 / 1 !important;
+            height: auto !important;
+            min-height: unset !important;
+        }
+        </style>""", unsafe_allow_html=True)
 
         from streamlit_qrcode_scanner import qrcode_scanner
         from urllib.parse import urlparse, parse_qs
@@ -609,8 +634,11 @@ if current_page == "order":
                 st.error(f"❌ Sai căng tin! Bạn đã chọn **{_p_ten_vitri}** nhưng quét QR tại **{_ten_scan}**.")
             else:
                 confirm_pending_order(_p_id, actor)
-                st.success(f"✅ Đặt Món Thành Công! {_p_ten_monan} · {don_gia_fmt} ₫")
-                st.balloons()
+                st.session_state["order_success"] = {
+                    "ten_monan": _p_ten_monan,
+                    "don_gia": don_gia_fmt,
+                    "ten_vitri": _p_ten_vitri,
+                }
                 st.rerun()
 
         if st.button("❌ Hủy đơn", type="secondary"):
