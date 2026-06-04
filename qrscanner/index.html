@@ -6,10 +6,11 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; background: #000; overflow: hidden; }
-#qr-reader { width: 100%; aspect-ratio: 1; overflow: hidden; }
-#qr-reader__scan_region { height: 100% !important; }
-video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-/* Hide the rectangular dark shading panels */
+#qr-reader { width: 100%; }
+#err { color: #fff; font-size: 13px; padding: 12px; display: none; }
+video { object-fit: cover !important; width: 100% !important; }
+/* Hide rectangular dark shading panels */
+#qr-reader__scan_region > img,
 #qr-reader__scan_region__box_top,
 #qr-reader__scan_region__box_bottom,
 #qr-reader__scan_region__box_left,
@@ -22,8 +23,10 @@ video { width: 100% !important; height: 100% !important; object-fit: cover !impo
 </head>
 <body>
 <div id="qr-reader"></div>
+<div id="err"></div>
 <script>
-var started = false;
+var lastResult = "";
+var cameraStarted = false;
 
 function setFrameHeight(h) {
   window.parent.postMessage({ type: "streamlit:setFrameHeight", height: h }, "*");
@@ -35,30 +38,50 @@ function setComponentReady() {
   window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
 }
 
+function showError(msg) {
+  var el = document.getElementById("err");
+  el.style.display = "block";
+  el.textContent = msg;
+  setFrameHeight(60);
+}
+
+function startCamera() {
+  if (cameraStarted) return;
+  cameraStarted = true;
+
+  var container = document.getElementById("qr-reader");
+  var w = container.clientWidth || window.innerWidth || 320;
+  if (w < 50) w = 320;
+  var sz = Math.round(w * 0.75);
+
+  setFrameHeight(w + 16);
+
+  var scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: sz, height: sz }, aspectRatio: 1.0 },
+    function(text) {
+      if (text !== lastResult) {
+        if (navigator.vibrate) navigator.vibrate(200);
+        lastResult = text;
+        setComponentValue(text);
+      }
+    }
+  ).catch(function(err) {
+    cameraStarted = false;
+    showError("Lỗi camera: " + err);
+  });
+}
+
+// Start camera on DOM ready — don't depend solely on streamlit:render
+document.addEventListener("DOMContentLoaded", function() {
+  setTimeout(startCamera, 150);
+});
+
+// Keep streamlit:render as a fallback
 window.addEventListener("message", function(event) {
-  if (event.data.type === "streamlit:render" && !started) {
-    started = true;
-    setTimeout(function() {
-      var container = document.getElementById("qr-reader");
-      var w = container.clientWidth || window.innerWidth || 300;
-      setFrameHeight(w + 4);
-
-      var sz = Math.round(w * 0.75);
-      var lastResult = "";
-      var scanner = new Html5Qrcode("qr-reader");
-
-      scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: sz, height: sz }, aspectRatio: 1.0 },
-        function(text) {
-          if (text !== lastResult) {
-            if (navigator.vibrate) navigator.vibrate(200);
-            lastResult = text;
-            setComponentValue(text);
-          }
-        }
-      );
-    }, 100);
+  if (event.data && event.data.type === "streamlit:render" && !cameraStarted) {
+    setTimeout(startCamera, 150);
   }
 });
 
