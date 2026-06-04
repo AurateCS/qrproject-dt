@@ -504,7 +504,7 @@ def get_thucdon_available(ma_vitri, chu_ky_ngay):
     c = get_conn()
     df = pd.read_sql(
         'SELECT t."Id",t."MaMonAn",t."ThoiGianBatDau",t."SoSuatDuKien",'
-        'm."TenMonAn",m."DonGia" '
+        'm."TenMonAn",m."DonGia",m."HinhAnh" '
         'FROM thucdon t '
         'JOIN monan m ON t."MaMonAn"=m."MaMonAn" '
         'LEFT JOIN menu mn ON mn."Ngay"=%s '

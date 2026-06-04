@@ -582,22 +582,66 @@ if current_page == "order":
         st.info("Chưa có bữa ăn nào bắt đầu phục vụ.")
         st.stop()
 
-    price_lookup = dict(zip(df_avail["MaMonAn"], df_avail["DonGia"]))
-    menu_options = {
-        f"{r['TenMonAn']}  —  {int(r['DonGia']):,}".replace(",", "."): r["MaMonAn"]
-        for _, r in df_avail.iterrows()
-    }
-    with st.form("order_form"):
-        sel_label = st.radio("Chọn món:", list(menu_options.keys()))
-        if st.form_submit_button("✅ Đặt Món", use_container_width=True):
-            ma_monan = menu_options[sel_label]
-            don_gia = int(price_lookup[ma_monan])
+    # Pre-warm image cache
+    _order_imgs = df_avail["HinhAnh"].dropna().unique().tolist()
+    if _order_imgs:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as _ex:
+            list(_ex.map(resolve_image, _order_imgs))
+
+    sel_key = f"order_sel_{ma_vitri}"
+    if sel_key not in st.session_state:
+        st.session_state[sel_key] = None
+
+    st.markdown("**Chọn món:**")
+    for _, row in df_avail.iterrows():
+        img_url = resolve_image(row.get("HinhAnh"))
+        don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
+        is_sel = st.session_state[sel_key] == row["MaMonAn"]
+
+        col_img, col_info, col_btn = st.columns([1, 3, 1])
+        with col_img:
+            if img_url:
+                st.markdown(
+                    f'<a href="{img_url}" target="_blank" rel="noopener noreferrer">'
+                    f'<img src="{img_url}" style="width:100%;height:72px;object-fit:cover;'
+                    f'border-radius:8px;display:block;cursor:pointer;"></a>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div style="width:100%;height:72px;background:#f5f5f5;border-radius:8px;'
+                    'display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🍽️</div>',
+                    unsafe_allow_html=True,
+                )
+        with col_info:
+            st.markdown(f"**{row['TenMonAn']}**  \n{don_gia_str} ₫")
+        with col_btn:
+            if st.button(
+                "✓" if is_sel else "Chọn",
+                key=f"pick_{row['MaMonAn']}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state[sel_key] = row["MaMonAn"]
+                st.rerun()
+        st.divider()
+
+    ma_monan_sel = st.session_state.get(sel_key)
+    if ma_monan_sel:
+        sel_row = df_avail[df_avail["MaMonAn"] == ma_monan_sel].iloc[0]
+        don_gia_sel = int(sel_row["DonGia"])
+        st.markdown(f"**Đã chọn:** {sel_row['TenMonAn']} — {don_gia_sel:,} ₫".replace(",", "."))
+        if st.button("✅ Đặt Món", use_container_width=True, type="primary"):
             try:
-                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan, actor, 1, don_gia, actor, '')
-                st.success(f"Đặt món thành công! **{sel_label.split('  —  ')[0]}**")
+                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan_sel, actor, 1, don_gia_sel, actor, '')
+                st.success(f"Đặt món thành công! **{sel_row['TenMonAn']}**")
                 st.balloons()
+                st.session_state[sel_key] = None
             except Exception as e:
                 st.error(f"Lỗi: {e}")
+    else:
+        st.caption("Chọn một món để đặt.")
     st.stop()
 
 # --- Quản Lý Đặt Món page (admin only) ---
