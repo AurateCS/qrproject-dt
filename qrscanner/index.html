@@ -7,15 +7,13 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; background: #000; overflow: hidden; }
 #qr-reader { width: 100%; }
-#msg { color: #ccc; font-size: 13px; padding: 12px; text-align: center; }
+#msg { color: #ddd; font-size: 13px; padding: 12px; text-align: center; }
 video { object-fit: cover !important; width: 100% !important; }
-/* Hide rectangular dark shading panels */
 #qr-reader__scan_region > img,
 #qr-reader__scan_region__box_top,
 #qr-reader__scan_region__box_bottom,
 #qr-reader__scan_region__box_left,
 #qr-reader__scan_region__box_right { display: none !important; }
-/* Hide library UI chrome */
 #qr-reader__dashboard,
 #qr-reader__header_message,
 #qr-reader__status_span { display: none !important; }
@@ -44,11 +42,16 @@ function showMsg(text) {
 
 function startCamera() {
   if (cameraStarted) return;
-  cameraStarted = true;
 
+  if (typeof Html5Qrcode === "undefined") {
+    showMsg("Lỗi: không tải được thư viện QR. Kiểm tra kết nối.");
+    setFrameHeight(80);
+    return;
+  }
+
+  cameraStarted = true;
   var w = window.innerWidth || 320;
   var sz = Math.round(w * 0.75);
-
   setFrameHeight(w + 16);
 
   var scanner = new Html5Qrcode("qr-reader");
@@ -59,7 +62,6 @@ function startCamera() {
       if (text !== lastResult) {
         if (navigator.vibrate) navigator.vibrate(200);
         lastResult = text;
-        showMsg("Đã quét: " + text);
         setComponentValue(text);
       }
     }
@@ -67,18 +69,18 @@ function startCamera() {
     showMsg("");
   }).catch(function(err) {
     cameraStarted = false;
-    showMsg("Lỗi: " + err);
+    showMsg("Lỗi camera: " + err);
     setFrameHeight(80);
   });
 }
 
-// Set a visible height immediately so the iframe isn't collapsed
+// Set visible height immediately
 setFrameHeight(window.innerWidth || 320);
 
-document.addEventListener("DOMContentLoaded", function() {
-  setTimeout(startCamera, 200);
-});
+// Script is at bottom of body — DOM already ready, just call directly
+setTimeout(startCamera, 200);
 
+// Streamlit render event as fallback
 window.addEventListener("message", function(event) {
   if (event.data && event.data.type === "streamlit:render" && !cameraStarted) {
     setTimeout(startCamera, 200);
