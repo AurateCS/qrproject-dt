@@ -27,7 +27,7 @@ function sendValue(value) {
       video.setAttribute('position', 'relative');
       video.setAttribute('width', 'auto');
 
-      height = video.clientWidth;
+      height = 4/3 * video.clientWidth;
       Streamlit.setFrameHeight(height);
       
       function beep() {
