@@ -608,38 +608,39 @@ if current_page == "order":
         don_gia_fmt = f"{int(_p_gia):,}".replace(",", ".")
         st.success(f"Đơn đã được tạo — quét mã QR tại căng tin để xác nhận.")
         st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{don_gia_fmt} ₫**")
-        st.markdown("**📷 Hướng camera vào mã QR tại căng tin:**")
-        st.markdown("""<style>
-        [data-testid="stCustomComponentV1"] iframe {
-            aspect-ratio: 1 / 1 !important;
-            height: auto !important;
-            min-height: unset !important;
-        }
-        </style>""", unsafe_allow_html=True)
+        st.markdown("**📷 Chụp mã QR tại căng tin để xác nhận:**")
 
-        from streamlit_qrcode_scanner import qrcode_scanner
         from urllib.parse import urlparse, parse_qs
-        scanned = qrcode_scanner(key=f"qr_scan_{_p_id}")
-        if scanned:
-            try:
-                _params = parse_qs(urlparse(scanned).query)
-                _vitri_scanned = _params.get("vitri", [None])[0]
-            except Exception:
-                _vitri_scanned = None
-            if not _vitri_scanned:
-                st.error("QR code không hợp lệ.")
-            elif _vitri_scanned != _p_vitri:
-                _vinfo = get_vitri_detail(_vitri_scanned)
-                _ten_scan = _vinfo[0] if _vinfo else _vitri_scanned
-                st.error(f"❌ Sai căng tin! Bạn đã chọn **{_p_ten_vitri}** nhưng quét QR tại **{_ten_scan}**.")
+        import cv2
+        import numpy as np
+
+        img_file = st.camera_input("Hướng vào mã QR rồi chụp", label_visibility="collapsed")
+        if img_file:
+            img_arr = np.frombuffer(img_file.read(), np.uint8)
+            img_cv = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+            qr_data, _, _ = cv2.QRCodeDetector().detectAndDecode(img_cv)
+            if not qr_data:
+                st.warning("Không tìm thấy mã QR — thử chụp lại, giữ tay thật thẳng.")
             else:
-                confirm_pending_order(_p_id, actor)
-                st.session_state["order_success"] = {
-                    "ten_monan": _p_ten_monan,
-                    "don_gia": don_gia_fmt,
-                    "ten_vitri": _p_ten_vitri,
-                }
-                st.rerun()
+                try:
+                    _params = parse_qs(urlparse(qr_data).query)
+                    _vitri_scanned = _params.get("vitri", [None])[0]
+                except Exception:
+                    _vitri_scanned = None
+                if not _vitri_scanned:
+                    st.error("QR code không hợp lệ.")
+                elif _vitri_scanned != _p_vitri:
+                    _vinfo = get_vitri_detail(_vitri_scanned)
+                    _ten_scan = _vinfo[0] if _vinfo else _vitri_scanned
+                    st.error(f"❌ Sai căng tin! Bạn đã chọn **{_p_ten_vitri}** nhưng quét QR tại **{_ten_scan}**.")
+                else:
+                    confirm_pending_order(_p_id, actor)
+                    st.session_state["order_success"] = {
+                        "ten_monan": _p_ten_monan,
+                        "don_gia": don_gia_fmt,
+                        "ten_vitri": _p_ten_vitri,
+                    }
+                    st.rerun()
 
         if st.button("❌ Hủy đơn", type="secondary"):
             cancel_pending_order(actor)
