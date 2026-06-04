@@ -604,13 +604,13 @@ if current_page == "order":
             if img_url:
                 st.markdown(
                     f'<a href="{img_url}" target="_blank" rel="noopener noreferrer">'
-                    f'<img src="{img_url}" style="width:100%;height:72px;object-fit:cover;'
+                    f'<img src="{img_url}" style="width:100%;aspect-ratio:1/1;object-fit:cover;'
                     f'border-radius:8px;display:block;cursor:pointer;"></a>',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    '<div style="width:100%;height:72px;background:#f5f5f5;border-radius:8px;'
+                    '<div style="width:100%;aspect-ratio:1/1;background:#f5f5f5;border-radius:8px;'
                     'display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🍽️</div>',
                     unsafe_allow_html=True,
                 )
