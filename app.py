@@ -511,8 +511,10 @@ if current_page == "thucdon":
             don_gia_str = f"{int(row['DonGia']):,}".replace(",", ".")
             img_url = resolve_image(row.get("HinhAnh"))
             img_html = (
+                f'<a href="{img_url}" target="_blank" rel="noopener noreferrer">'
                 f'<img src="{img_url}" style="width:100%;height:170px;'
-                f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
+                f'object-fit:cover;border-radius:10px 10px 0 0;display:block;cursor:pointer;">'
+                f'</a>'
                 if img_url else
                 '<div style="width:100%;height:100px;background:#f5f5f5;'
                 'border-radius:10px 10px 0 0;display:flex;align-items:center;'
