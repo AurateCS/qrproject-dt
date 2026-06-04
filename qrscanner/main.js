@@ -60,7 +60,7 @@ function sendValue(value) {
               sendValue(lastResult);                
             }
         }
-        const sz = Math.round(video.clientWidth * 0.55);
+        const sz = Math.round(video.clientWidth * 0.75);
         const html5QrCode = new Html5Qrcode("qr-reader");
         const config = { fps: 10, qrbox: { width: sz, height: sz } };
         html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
