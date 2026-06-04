@@ -1,5 +1,6 @@
 import os
 import psycopg2
+import psycopg2.pool
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -15,8 +16,44 @@ def _get_db_url():
         return os.environ.get("DATABASE_URL", "")
 
 
+@st.cache_resource
+def _get_pool():
+    return psycopg2.pool.ThreadedConnectionPool(1, 10, _get_db_url())
+
+
 def get_conn():
-    return psycopg2.connect(_get_db_url())
+    pool = _get_pool()
+    conn = pool.getconn()
+    conn.autocommit = False
+    return _PooledConn(pool, conn)
+
+
+class _PooledConn:
+    """Wraps a pooled connection so it returns itself to the pool on close."""
+    def __init__(self, pool, conn):
+        self._pool = pool
+        self._conn = conn
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        try:
+            self._pool.putconn(self._conn)
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
 
 
 column_labels = {
