@@ -10,9 +10,10 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 insert_datmon, insert_congty, insert_vitri, insert_nhanvien, insert_monan,
                 update_datmon, update_congty, update_vitri, update_nhanvien, update_monan,
                 update_user_password, toggle_admin, get_sidebar,
-                get_config, set_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
+                get_config, set_config, upsert_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
                 get_thucdon_hom_nay, get_vitri_detail,
-                update_thucdon, get_thucdon_available, finish_thucdon_today)
+                update_thucdon, get_thucdon_available, finish_thucdon_today,
+                get_pending_order, confirm_pending_order, cancel_pending_order)
 from auth import create_session, validate_session, delete_session
 
 _VN_TZ = timezone(timedelta(hours=7))
@@ -582,6 +583,26 @@ if current_page == "order":
         st.info("Chưa có bữa ăn nào bắt đầu phục vụ.")
         st.stop()
 
+    # If user already has a pending order for this location, show the scan screen
+    _pending = get_pending_order(actor)
+    if _pending and _pending[1] == ma_vitri:
+        _p_id, _p_vitri, _p_monan, _p_gia, _p_ten_monan, _p_ten_vitri = _pending
+        st.success(f"Đơn đã được tạo — hãy quét mã QR tại căng tin để xác nhận.")
+        st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{int(_p_gia):,} ₫**".replace(",", "."))
+        st.markdown(
+            "<div style='background:#fff8e1;border:1px solid #ffe082;border-radius:10px;"
+            "padding:18px 20px;margin:16px 0;font-size:1rem;'>"
+            "📱 Quét mã QR tại <b>" + _p_ten_vitri + "</b> để hoàn tất đặt món.</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("❌ Hủy đơn", type="secondary"):
+            cancel_pending_order(actor)
+            st.rerun()
+        st.stop()
+
+    if _pending and _pending[1] != ma_vitri:
+        st.warning(f"Bạn có đơn đang chờ tại **{_pending[5]}**. Đặt món mới sẽ hủy đơn cũ.")
+
     # Pre-warm image cache
     _order_imgs = df_avail["HinhAnh"].dropna().unique().tolist()
     if _order_imgs:
@@ -638,15 +659,65 @@ if current_page == "order":
         st.markdown(f"**Đã chọn:** {sel_row['TenMonAn']} — {don_gia_sel:,} ₫".replace(",", "."))
         if st.button("✅ Đặt Món", use_container_width=True, type="primary"):
             try:
-                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan_sel, actor, 1, don_gia_sel, actor, '')
-                st.success(f"Đặt món thành công! **{sel_row['TenMonAn']}**")
-                st.balloons()
+                cancel_pending_order(actor)
+                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan_sel, actor, 1, don_gia_sel, actor, '', trang_thai='pending')
                 st.session_state[sel_key] = None
+                st.rerun()
             except Exception as e:
                 st.error(f"Lỗi: {e}")
     else:
         st.caption("Chọn một món để đặt.")
     st.stop()
+
+# --- QR Confirm page ---
+if current_page == "qrconfirm":
+    top_header()
+    sidebar_nav()
+
+    ma_vitri_qr = st.query_params.get("vitri", "")
+    if not ma_vitri_qr:
+        st.error("QR code không hợp lệ.")
+        st.stop()
+
+    vitri_info_qr = get_vitri_detail(ma_vitri_qr)
+    if not vitri_info_qr:
+        st.error("Địa điểm không hợp lệ.")
+        st.stop()
+
+    ten_vitri_qr = vitri_info_qr[0]
+    pending = get_pending_order(actor)
+
+    if not pending:
+        st.warning("Bạn chưa có đơn nào đang chờ. Vui lòng chọn món trước.")
+        if st.button("🛒 Đặt Món", type="primary"):
+            st.query_params["page"] = "order"
+            st.query_params["vitri"] = ma_vitri_qr
+            st.rerun()
+        st.stop()
+
+    p_id, p_vitri, p_monan, p_gia, p_ten_monan, p_ten_vitri = pending
+
+    if p_vitri != ma_vitri_qr:
+        st.error(
+            f"❌ Sai căng tin!\n\n"
+            f"Bạn đã chọn **{p_ten_vitri}** nhưng đang quét QR tại **{ten_vitri_qr}**.\n\n"
+            f"Vui lòng quét đúng mã QR tại **{p_ten_vitri}**."
+        )
+        st.stop()
+
+    confirm_pending_order(p_id, actor)
+    don_gia_str = f"{int(p_gia):,}".replace(",", ".")
+    st.markdown(f"<h2 style='margin:8px 0 4px 0;'>✅ Đặt Món Thành Công!</h2>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;"
+        f"padding:18px 20px;margin:16px 0;font-size:1rem;'>"
+        f"<b>{p_ten_monan}</b> &nbsp;·&nbsp; {don_gia_str} ₫<br>"
+        f"<span style='color:#555;'>📍 {ten_vitri_qr}</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.balloons()
+    st.stop()
+
 
 # --- Quản Lý Đặt Món page (admin only) ---
 if current_page == "qldatmon":
@@ -1191,6 +1262,54 @@ if current_page == "qlvitri":
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
     st.stop()
+
+# --- Quản Lý Mã QR page (admin only) ---
+if current_page == "qlqr":
+    if not is_admin:
+        st.error("Không có quyền truy cập.")
+        st.stop()
+    top_header()
+    sidebar_nav()
+    st.markdown("<h2 style='margin:8px 0 16px 0;'>📱 Mã QR Căng Tin</h2>", unsafe_allow_html=True)
+
+    try:
+        import qrcode as _qrcode
+    except ImportError:
+        st.error("Cần cài đặt thư viện qrcode: `pip install qrcode[pil]`")
+        st.stop()
+
+    saved_url = get_config('app_url') or ""
+    base_url = st.text_input("URL ứng dụng (dùng để tạo QR)", value=saved_url,
+                              placeholder="https://your-app.streamlit.app")
+    if base_url and base_url != saved_url:
+        upsert_config('app_url', base_url)
+
+    if not base_url:
+        st.info("Nhập URL ứng dụng ở trên để tạo mã QR.")
+        st.stop()
+
+    vitri_list = load_table("vitri", show_all=False)
+    cols_qr = st.columns(3)
+    for i, (_, row) in enumerate(vitri_list.iterrows()):
+        ma = row["MaViTri"]
+        ten = row["TenViTri"]
+        url = f"{base_url.rstrip('/')}/?page=qrconfirm&vitri={ma}"
+        qr = _qrcode.QRCode(version=1, box_size=10, border=4,
+                             error_correction=_qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        img_bytes = buf.getvalue()
+        with cols_qr[i % 3]:
+            st.markdown(f"**{ten}**")
+            st.image(img_bytes, use_container_width=True)
+            st.download_button("⬇️ Tải QR", img_bytes,
+                               file_name=f"qr_{ma}.png", mime="image/png",
+                               key=f"dl_qr_{ma}", use_container_width=True)
+    st.stop()
+
 
 top_header()
 sidebar_nav()

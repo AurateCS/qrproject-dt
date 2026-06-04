@@ -310,21 +310,66 @@ def check_duplicate_order(ma_nhanvien, ngay, bua_an, ma_diadiem):
     return count > 0
 
 
-def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an=''):
+def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an='', trang_thai='active'):
     thanh_tien = so_luong * don_gia
     now = _now()
-    id_val = f"ORD-{ngay.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
+    id_val = f"ORD-{ngay.strftime('%Y%m%d')}-{now.strftime('%H%M%S%f')}"
     c = get_conn()
     cur = c.cursor()
     cur.execute(
         'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") '
-        'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,\'active\',%s,%s,%s,%s)',
-        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, now, actor, now, actor)
+        'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, trang_thai, now, actor, now, actor)
     )
     c.commit()
     c.close()
+    if trang_thai == 'active':
+        get_thucdon_available.clear()
+        get_thucdon_hom_nay.clear()
+
+
+def get_pending_order(username):
+    c = get_conn()
+    cur = c.cursor()
+    cur.execute(
+        'SELECT d."Id",d."MaDiaDiem",d."MaMonAn",d."DonGia",m."TenMonAn",v."TenViTri" '
+        'FROM datmon d '
+        'JOIN monan m ON d."MaMonAn"=m."MaMonAn" '
+        'JOIN vitri v ON d."MaDiaDiem"=v."MaViTri" '
+        'WHERE d."MaNhanVien"=%s AND d."TrangThai"=\'pending\' '
+        'ORDER BY d."NgayTao" DESC LIMIT 1',
+        (username,)
+    )
+    row = cur.fetchone()
+    c.close()
+    return row  # (id, ma_diadiem, ma_monan, don_gia, ten_monan, ten_vitri) or None
+
+
+def confirm_pending_order(id_val, actor):
+    _set_trangthai("datmon", "Id", id_val, "active", actor)
     get_thucdon_available.clear()
     get_thucdon_hom_nay.clear()
+
+
+def cancel_pending_order(username):
+    c = get_conn()
+    cur = c.cursor()
+    cur.execute('DELETE FROM datmon WHERE "MaNhanVien"=%s AND "TrangThai"=\'pending\'', (username,))
+    c.commit()
+    c.close()
+
+
+def upsert_config(key, value):
+    c = get_conn()
+    cur = c.cursor()
+    cur.execute(
+        'INSERT INTO config ("CauHinh","GiaTri") VALUES (%s,%s) '
+        'ON CONFLICT ("CauHinh") DO UPDATE SET "GiaTri"=%s',
+        (key, value, value)
+    )
+    c.commit()
+    c.close()
+    get_config.clear()
 
 
 def insert_congty(ma_congty, ten_congty, dia_chi, trang_thai, actor):
@@ -696,6 +741,12 @@ def _sidebar_fallback():
             "items": [
                 {"label": "👥 Tài Khoản", "key": "taikhoan",  "admin": True},
                 {"label": "📝 Đăng Ký",   "key": "dangnhap",  "admin": True},
+            ],
+        },
+        {
+            "section": "Cài Đặt",
+            "items": [
+                {"label": "📱 Mã QR Căng Tin", "key": "qlqr", "admin": True},
             ],
         },
     ]
