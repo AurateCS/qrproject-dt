@@ -673,7 +673,7 @@ if current_page == "order":
         border = "2px solid #EE1C25" if is_sel else "1px solid #eee"
         img_html = (
             f'<img src="{img_url}" style="width:100%;height:130px;'
-            f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
+            f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">' #67
             if img_url else
             '<div style="width:100%;height:100px;background:#f5f5f5;'
             'border-radius:10px 10px 0 0;display:flex;align-items:center;'
