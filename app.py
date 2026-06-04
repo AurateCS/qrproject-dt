@@ -614,24 +614,57 @@ if current_page == "order":
         from streamlit_qrcode_scanner import qrcode_scanner
         from urllib.parse import urlparse, parse_qs
 
-        # Force the scanner iframe to be square by overriding the height Streamlit sets on it
+        # Fix scanner iframe: make outer frame square, fill video, and square the white scan box overlay
         _cmp.html("""<script>
 (function(){
   var db;
+  function fixInner(f){
+    try{
+      var d=f.contentDocument||f.contentWindow.document;
+      if(!d||!d.head||d.__sq)return;
+      d.__sq=true;
+      // Make the camera video fill the square container
+      var s=d.createElement('style');
+      s.textContent='video{width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;}';
+      d.head.appendChild(s);
+      // After the scanner renders, find the white scan-box overlay and make it square
+      setTimeout(function(){
+        try{
+          d.querySelectorAll('div').forEach(function(el){
+            var cs=d.defaultView.getComputedStyle(el);
+            var bc=cs.borderTopColor;
+            var isWhiteBorder=(bc==='rgb(255, 255, 255)'||bc==='rgba(255, 255, 255, 1)');
+            if(cs.position==='absolute'&&isWhiteBorder){
+              var r=el.getBoundingClientRect();
+              if(r.width>40){
+                var sz=Math.min(r.width,r.height);
+                el.style.width=sz+'px';
+                el.style.height=sz+'px';
+                el.style.top='50%';
+                el.style.left='50%';
+                el.style.transform='translate(-50%,-50%)';
+              }
+            }
+          });
+        }catch(e){}
+      },1500);
+    }catch(e){}
+  }
   function sq(){
     try{
       window.parent.document.querySelectorAll('iframe').forEach(function(f){
         var w=f.offsetWidth;
-        if(w>100 && f.offsetHeight>0 && f.offsetHeight<w*0.65){
+        if(w>100&&f.offsetHeight>0&&f.offsetHeight<w*0.65){
           f.style.height=w+'px';
         }
+        fixInner(f);
       });
     }catch(e){}
   }
-  var n=0, t=setInterval(function(){ sq(); if(++n>20) clearInterval(t); }, 200);
+  var n=0,t=setInterval(function(){sq();if(++n>20)clearInterval(t);},200);
   try{
-    new MutationObserver(function(){ clearTimeout(db); db=setTimeout(sq,60); })
-      .observe(window.parent.document.body, {subtree:true, attributes:true, attributeFilter:['style']});
+    new MutationObserver(function(){clearTimeout(db);db=setTimeout(sq,60);})
+      .observe(window.parent.document.body,{subtree:true,attributes:true,attributeFilter:['style']});
   }catch(e){}
 })();
 </script>""", height=1)
