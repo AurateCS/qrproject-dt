@@ -662,6 +662,9 @@ if current_page == "order":
     if sel_key not in st.session_state:
         st.session_state[sel_key] = None
 
+    def _pick(k, v):
+        st.session_state[k] = v
+
     cols = st.columns(3)
     for i, (_, row) in enumerate(df_avail.iterrows()):
         img_url = resolve_image(row.get("HinhAnh"))
@@ -690,13 +693,14 @@ if current_page == "order":
                     </span>
                 </div>
             </div>""", unsafe_allow_html=True)
-            if st.button(
+            st.button(
                 "✓ Đã chọn" if is_sel else "Chọn",
                 key=f"pick_{row['MaMonAn']}",
                 type="primary" if is_sel else "secondary",
                 use_container_width=True,
-            ):
-                st.session_state[sel_key] = row["MaMonAn"]
+                on_click=_pick,
+                args=(sel_key, row["MaMonAn"]),
+            )
 
     st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
     ma_monan_sel = st.session_state.get(sel_key)
