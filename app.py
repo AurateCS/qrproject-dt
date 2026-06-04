@@ -648,12 +648,15 @@ if current_page == "order":
     if _pending and _pending[1] != ma_vitri:
         st.warning(f"Bạn có đơn đang chờ tại **{_pending[5]}**. Đặt món mới sẽ hủy đơn cũ.")
 
-    # Pre-warm image cache
-    _order_imgs = df_avail["HinhAnh"].dropna().unique().tolist()
-    if _order_imgs:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=8) as _ex:
-            list(_ex.map(resolve_image, _order_imgs))
+    # Pre-warm image cache (once per location per session)
+    _warm_key = f"_imgs_warmed_{ma_vitri}"
+    if _warm_key not in st.session_state:
+        _order_imgs = df_avail["HinhAnh"].dropna().unique().tolist()
+        if _order_imgs:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=8) as _ex:
+                list(_ex.map(resolve_image, _order_imgs))
+        st.session_state[_warm_key] = True
 
     sel_key = f"order_sel_{ma_vitri}"
     if sel_key not in st.session_state:
@@ -694,7 +697,6 @@ if current_page == "order":
                 use_container_width=True,
             ):
                 st.session_state[sel_key] = row["MaMonAn"]
-                st.rerun()
 
     st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
     ma_monan_sel = st.session_state.get(sel_key)

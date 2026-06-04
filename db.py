@@ -326,8 +326,11 @@ def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, 
     if trang_thai == 'active':
         get_thucdon_available.clear()
         get_thucdon_hom_nay.clear()
+    if trang_thai == 'pending':
+        get_pending_order.clear()
 
 
+@st.cache_data(ttl=10)
 def get_pending_order(username):
     c = get_conn()
     cur = c.cursor()
@@ -349,6 +352,7 @@ def confirm_pending_order(id_val, actor):
     _set_trangthai("datmon", "Id", id_val, "active", actor)
     get_thucdon_available.clear()
     get_thucdon_hom_nay.clear()
+    get_pending_order.clear()
 
 
 def cancel_pending_order(username):
@@ -357,6 +361,7 @@ def cancel_pending_order(username):
     cur.execute('DELETE FROM datmon WHERE "MaNhanVien"=%s AND "TrangThai"=\'pending\'', (username,))
     c.commit()
     c.close()
+    get_pending_order.clear()
 
 
 def upsert_config(key, value):
