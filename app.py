@@ -18,6 +18,9 @@ from auth import create_session, validate_session, delete_session
 
 _VN_TZ = timezone(timedelta(hours=7))
 
+import streamlit.components.v1 as _components
+_qrscanner = _components.declare_component("qrscanner", path="qrscanner")
+
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
 
 st.markdown("""
@@ -610,63 +613,8 @@ if current_page == "order":
         st.markdown(f"**Món:** {_p_ten_monan} &nbsp;·&nbsp; **{don_gia_fmt} ₫**")
         st.markdown("**📷 Hướng camera vào mã QR tại căng tin:**")
 
-        import streamlit.components.v1 as _cmp
-        from streamlit_qrcode_scanner import qrcode_scanner
         from urllib.parse import urlparse, parse_qs
-
-        # Fix scanner using exact html5-qrcode element IDs from the component source
-        _cmp.html("""<script>
-(function(){
-  var db;
-  function fixInner(f){
-    if(f.offsetHeight<80)return;
-    try{
-      var d=f.contentDocument||f.contentWindow.document;
-      if(!d||!d.head||d.__sq)return;
-      d.__sq=true;
-      var s=d.createElement('style');
-      s.textContent=
-        // scanner root + scan region fill the square iframe
-        '#qr-reader,#qr-reader__scan_region{'
-        +'width:100%!important;height:100%!important;overflow:hidden!important;}'
-        // video fills square with object-fit:cover; override mobile negative-top offset
-        +'video{width:100%!important;height:100%!important;'
-        +'object-fit:cover!important;position:absolute!important;'
-        +'top:0!important;left:0!important;}'
-        // hide the 4 dark shading panels that frame the rectangular scan zone
-        +'#qr-reader__scan_region__box_top,'
-        +'#qr-reader__scan_region__box_bottom,'
-        +'#qr-reader__scan_region__box_left,'
-        +'#qr-reader__scan_region__box_right{display:none!important;}'
-        // white corner brackets: make square and center them
-        +'#qr-reader__scan_region__scan_frame{'
-        +'width:75%!important;height:75%!important;'
-        +'top:50%!important;left:50%!important;'
-        +'transform:translate(-50%,-50%)!important;'
-        +'margin:0!important;box-sizing:border-box!important;}';
-      d.head.appendChild(s);
-    }catch(e){}
-  }
-  function sq(){
-    try{
-      window.parent.document.querySelectorAll('iframe').forEach(function(f){
-        var w=f.offsetWidth;
-        if(w>100&&f.offsetHeight>100&&f.offsetHeight<w*0.65){
-          f.style.height=w+'px';
-        }
-        fixInner(f);
-      });
-    }catch(e){}
-  }
-  var n=0,t=setInterval(function(){sq();if(++n>20)clearInterval(t);},200);
-  try{
-    new MutationObserver(function(){clearTimeout(db);db=setTimeout(sq,60);})
-      .observe(window.parent.document.body,{subtree:true,attributes:true,attributeFilter:['style']});
-  }catch(e){}
-})();
-</script>""", height=1)
-
-        scanned = qrcode_scanner(key=f"qr_scan_{_p_id}")
+        scanned = _qrscanner(key=f"qr_scan_{_p_id}")
         if scanned:
             try:
                 _params = parse_qs(urlparse(scanned).query)

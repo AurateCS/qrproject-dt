@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; background: #000; overflow: hidden; }
+#qr-reader { width: 100%; }
+video { object-fit: cover !important; }
+/* Hide the rectangular dark shading panels */
+#qr-reader__scan_region__box_top,
+#qr-reader__scan_region__box_bottom,
+#qr-reader__scan_region__box_left,
+#qr-reader__scan_region__box_right { display: none !important; }
+/* Hide library UI chrome */
+#qr-reader__dashboard,
+#qr-reader__header_message,
+#qr-reader__status_span { display: none !important; }
+</style>
+</head>
+<body>
+<div id="qr-reader"></div>
+<script>
+var started = false;
+
+function setFrameHeight(h) {
+  window.parent.postMessage({ type: "streamlit:setFrameHeight", height: h }, "*");
+}
+function setComponentValue(v) {
+  window.parent.postMessage({ type: "streamlit:setComponentValue", value: v, dataType: "json" }, "*");
+}
+function setComponentReady() {
+  window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
+}
+
+window.addEventListener("message", function(event) {
+  if (event.data.type === "streamlit:render" && !started) {
+    started = true;
+    setTimeout(function() {
+      var container = document.getElementById("qr-reader");
+      var w = container.clientWidth || window.innerWidth || 300;
+      setFrameHeight(w + 16);
+
+      var sz = Math.round(w * 0.75);
+      var lastResult = "";
+      var scanner = new Html5Qrcode("qr-reader");
+
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: sz, height: sz }, aspectRatio: 1.0 },
+        function(text) {
+          if (text !== lastResult) {
+            if (navigator.vibrate) navigator.vibrate(200);
+            lastResult = text;
+            setComponentValue(text);
+          }
+        }
+      );
+    }, 100);
+  }
+});
+
+setComponentReady();
+setFrameHeight(0);
+</script>
+</body>
+</html>
