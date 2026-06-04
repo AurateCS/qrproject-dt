@@ -512,7 +512,7 @@ if current_page == "thucdon":
             img_url = resolve_image(row.get("HinhAnh"))
             img_html = (
                 f'<a href="{img_url}" target="_blank" rel="noopener noreferrer">'
-                f'<img src="{img_url}" style="width:100%;height:170px;'
+                f'<img src="{img_url}" style="width:100%;height:130px;'
                 f'object-fit:cover;border-radius:10px 10px 0 0;display:block;cursor:pointer;">'
                 f'</a>'
                 if img_url else
