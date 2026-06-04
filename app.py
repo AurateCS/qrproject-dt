@@ -18,12 +18,7 @@ from auth import create_session, validate_session, delete_session
 
 _VN_TZ = timezone(timedelta(hours=7))
 
-import streamlit.components.v1 as _components
-import os as _os
-_qrscanner = _components.declare_component(
-    "qrscanner",
-    path=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "qrscanner")
-)
+from streamlit_qrcode_scanner import qrcode_scanner as _qrscanner
 
 st.set_page_config(page_title="Báo Cáo", page_icon="🍽️", layout="wide", initial_sidebar_state="auto")
 
