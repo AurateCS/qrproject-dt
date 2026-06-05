@@ -13,7 +13,8 @@ from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active
                 get_config, set_config, upsert_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
                 get_thucdon_hom_nay, get_vitri_detail,
                 update_thucdon, get_thucdon_available, finish_thucdon_today,
-                get_pending_order, confirm_pending_order, cancel_pending_order)
+                get_pending_order, confirm_pending_order, cancel_pending_order,
+                get_phanquyen_grid, save_phanquyen, get_user_perm)
 from auth import create_session, validate_session, delete_session
 
 _VN_TZ = timezone(timedelta(hours=7))
@@ -82,7 +83,6 @@ st.markdown("""
 
 
 @st.cache_data(ttl=3600)
-@st.cache_data(ttl=3600)
 def resolve_image(url: str) -> str | None:
     if not url or not isinstance(url, str):
         return None
@@ -150,6 +150,7 @@ if token and not st.session_state.get("logged_in"):
         st.session_state.display_name = info[0]
         st.session_state.is_admin = bool(info[1])
         st.session_state.token = token
+        st.session_state.phanquyen = {} if bool(info[1]) else get_user_perm(username)
 
 # --- Login screen ---
 if not st.session_state.get("logged_in"):
@@ -169,6 +170,7 @@ if not st.session_state.get("logged_in"):
                 st.session_state.display_name = row[1]
                 st.session_state.is_admin = bool(row[2])
                 st.session_state.token = token
+                st.session_state.phanquyen = {} if bool(row[2]) else get_user_perm(username)
                 st.query_params["token"] = token
                 st.query_params["page"] = intended_page if intended_page != "menu" else "datmon"
                 if intended_vitri:
@@ -185,6 +187,15 @@ token = st.session_state.get("token", "")
 is_admin = st.session_state.get("is_admin", False)
 actor = st.session_state.get("username", "")
 display_name = st.session_state.get("display_name", actor)
+phanquyen = st.session_state.get("phanquyen", {})
+
+
+def _perm(page_key, field="access"):
+    if is_admin:
+        return True
+    if not phanquyen:
+        return True
+    return phanquyen.get(page_key, {}).get(field, False)
 
 
 
@@ -235,7 +246,7 @@ def sidebar_nav():
     with st.sidebar:
         btn_idx = 0
         for section in nav:
-            visible = [i for i in section["items"] if not i["admin"] or is_admin]
+            visible = [i for i in section["items"] if (not i["admin"] or is_admin) and _perm(i["key"])]
             if not visible:
                 continue
             st.markdown(
@@ -260,39 +271,42 @@ if current_page == "menu":
 
 # --- Đăng Ký page (admin only) ---
 if current_page == "dangnhap":
-    if not is_admin:
+    if not _perm("dangnhap"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h3>Đăng Ký Tài Khoản</h3>", unsafe_allow_html=True)
     st.markdown("<div style='max-width:480px;'>", unsafe_allow_html=True)
-    locations = get_vitri_options()
-    with st.form("register"):
-        new_username = st.text_input("Tài Khoản")
-        new_display  = st.text_input("Họ và Tên")
-        new_location = st.selectbox("Địa Điểm", options=list(locations.keys()))
-        new_password = st.text_input("Mật Khẩu", type="password")
-        confirm_password = st.text_input("Xác Nhận Mật Khẩu", type="password")
-        if st.form_submit_button("Đăng Ký", use_container_width=True):
-            if not new_username or not new_display or not new_password:
-                st.error("Vui lòng điền đầy đủ thông tin.")
-            elif not new_username.isascii():
-                st.error("Tài khoản chỉ được dùng chữ không dấu.")
-            elif new_password != confirm_password:
-                st.error("Mật khẩu không khớp.")
-            else:
-                ok, msg = register_user(new_username, new_display, new_password, locations[new_location])
-                if ok:
-                    st.success(msg)
+    if not _perm("dangnhap", "new"):
+        st.warning("Bạn không có quyền thêm tài khoản mới.")
+    else:
+        locations = get_vitri_options()
+        with st.form("register"):
+            new_username = st.text_input("Tài Khoản")
+            new_display  = st.text_input("Họ và Tên")
+            new_location = st.selectbox("Địa Điểm", options=list(locations.keys()))
+            new_password = st.text_input("Mật Khẩu", type="password")
+            confirm_password = st.text_input("Xác Nhận Mật Khẩu", type="password")
+            if st.form_submit_button("Đăng Ký", use_container_width=True):
+                if not new_username or not new_display or not new_password:
+                    st.error("Vui lòng điền đầy đủ thông tin.")
+                elif not new_username.isascii():
+                    st.error("Tài khoản chỉ được dùng chữ không dấu.")
+                elif new_password != confirm_password:
+                    st.error("Mật khẩu không khớp.")
                 else:
-                    st.error(msg)
+                    ok, msg = register_user(new_username, new_display, new_password, locations[new_location])
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- Quản Lý Tài Khoản page (admin only) ---
 if current_page == "taikhoan":
-    if not is_admin:
+    if not _perm("taikhoan"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -318,94 +332,153 @@ if current_page == "taikhoan":
         tab_edit, tab_pwd, tab_status, tab_del = st.tabs(["✏️ Sửa thông tin", "🔑 Đặt lại mật khẩu", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_edit:
-            vk = list(vitri_opts.keys())
-            cv = next((k for k, v in vitri_opts.items() if v == r["MaDiaDiem"]), vk[0])
-            with st.form("edit_taikhoan"):
-                ten_e   = st.text_input("Họ và Tên", value=str(r["TenTaiKhoan"]))
-                vitri_e = st.selectbox("Địa Điểm", vk, index=vk.index(cv))
-                if st.form_submit_button("Lưu", use_container_width=True):
-                    try:
-                        update_nhanvien(r["TaiKhoan"], ten_e, vitri_opts[vitri_e], actor)
-                        st.success("Đã cập nhật!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-
-        with tab_pwd:
-            with st.form("reset_pwd"):
-                new_pwd     = st.text_input("Mật khẩu mới", type="password")
-                confirm_pwd = st.text_input("Xác nhận", type="password")
-                if st.form_submit_button("Đặt lại", use_container_width=True):
-                    if not new_pwd:
-                        st.error("Nhập mật khẩu mới.")
-                    elif new_pwd != confirm_pwd:
-                        st.error("Mật khẩu không khớp.")
-                    else:
+            if not _perm("taikhoan", "edit"):
+                st.warning("Bạn không có quyền sửa.")
+            else:
+                vk = list(vitri_opts.keys())
+                cv = next((k for k, v in vitri_opts.items() if v == r["MaDiaDiem"]), vk[0])
+                with st.form("edit_taikhoan"):
+                    ten_e   = st.text_input("Họ và Tên", value=str(r["TenTaiKhoan"]))
+                    vitri_e = st.selectbox("Địa Điểm", vk, index=vk.index(cv))
+                    if st.form_submit_button("Lưu", use_container_width=True):
                         try:
-                            update_user_password(r["TaiKhoan"], new_pwd, actor)
-                            st.success("Đã đặt lại!")
+                            update_nhanvien(r["TaiKhoan"], ten_e, vitri_opts[vitri_e], actor)
+                            st.success("Đã cập nhật!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
 
-        with tab_status:
-            with st.form("status_tk"):
-                b1, b2 = st.columns(2)
-                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                try:
-                    if do_inactive:
-                        soft_delete("dangnhap", "TaiKhoan", r["TaiKhoan"], actor)
-                        st.success("Đã vô hiệu hóa!")
-                        st.rerun()
-                    elif do_active:
-                        set_active("dangnhap", "TaiKhoan", r["TaiKhoan"], actor)
-                        st.success("Đã kích hoạt!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
+        with tab_pwd:
+            if not _perm("taikhoan", "edit"):
+                st.warning("Bạn không có quyền đặt lại mật khẩu.")
+            else:
+                with st.form("reset_pwd"):
+                    new_pwd     = st.text_input("Mật khẩu mới", type="password")
+                    confirm_pwd = st.text_input("Xác nhận", type="password")
+                    if st.form_submit_button("Đặt lại", use_container_width=True):
+                        if not new_pwd:
+                            st.error("Nhập mật khẩu mới.")
+                        elif new_pwd != confirm_pwd:
+                            st.error("Mật khẩu không khớp.")
+                        else:
+                            try:
+                                update_user_password(r["TaiKhoan"], new_pwd, actor)
+                                st.success("Đã đặt lại!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
 
-        with tab_del:
-            st.warning(f"Bạn có chắc muốn xóa hẳn tài khoản **{r['TaiKhoan']}**? Hành động này không thể hoàn tác.")
-            with st.form("del_tk"):
-                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+        with tab_status:
+            if not _perm("taikhoan", "edit"):
+                st.warning("Bạn không có quyền thay đổi trạng thái.")
+            else:
+                with st.form("status_tk"):
+                    b1, b2 = st.columns(2)
+                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        hard_delete("dangnhap", "TaiKhoan", r["TaiKhoan"])
-                        st.success("Đã xóa!")
-                        st.rerun()
+                        if do_inactive:
+                            soft_delete("dangnhap", "TaiKhoan", r["TaiKhoan"], actor)
+                            st.success("Đã vô hiệu hóa!")
+                            st.rerun()
+                        elif do_active:
+                            set_active("dangnhap", "TaiKhoan", r["TaiKhoan"], actor)
+                            st.success("Đã kích hoạt!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
 
+        with tab_del:
+            if not _perm("taikhoan", "delete"):
+                st.warning("Bạn không có quyền xóa.")
+            else:
+                st.warning(f"Bạn có chắc muốn xóa hẳn tài khoản **{r['TaiKhoan']}**? Hành động này không thể hoàn tác.")
+                with st.form("del_tk"):
+                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                        try:
+                            hard_delete("dangnhap", "TaiKhoan", r["TaiKhoan"])
+                            st.success("Đã xóa!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
+
+    st.stop()
+
+# --- Phân Quyền page (admin only) ---
+if current_page == "qlphanquyen":
+    if not _perm("qlphanquyen"):
+        st.error("Không có quyền truy cập.")
+        st.stop()
+    top_header()
+    sidebar_nav()
+    st.markdown("<h2 style='margin:8px 0 16px 0;'>🔐 Phân Quyền Tài Khoản</h2>", unsafe_allow_html=True)
+
+    nv_opts = get_nhanvien_options()
+    selected_name = st.selectbox("Chọn tài khoản", list(nv_opts.keys()), key="pq_user_sel")
+    selected_tk = nv_opts[selected_name]
+
+    df_pq = get_phanquyen_grid(selected_tk).copy()
+    for col in ["access_yn", "new_yn", "edit_yn", "delete_yn"]:
+        df_pq[col] = df_pq[col].astype(bool)
+
+    st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
+
+    edited = st.data_editor(
+        df_pq[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
+        column_config={
+            "controller": st.column_config.TextColumn("Controller", disabled=True, width="small"),
+            "title": st.column_config.TextColumn("Menu", disabled=True),
+            "access_yn": st.column_config.CheckboxColumn("Truy cập"),
+            "new_yn": st.column_config.CheckboxColumn("Thêm mới"),
+            "edit_yn": st.column_config.CheckboxColumn("Sửa"),
+            "delete_yn": st.column_config.CheckboxColumn("Xóa"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key=f"pq_editor_{selected_tk}",
+    )
+
+    if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
+        try:
+            rows = edited[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
+            save_phanquyen(selected_tk, rows)
+            st.success("Đã lưu phân quyền!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Thêm Công Ty page (admin only) ---
 if current_page == "themcongty":
-    if not is_admin:
+    if not _perm("themcongty"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 16px 0;'>➕ Thêm Công Ty</h2>", unsafe_allow_html=True)
     st.markdown("<div style='max-width:480px;'>", unsafe_allow_html=True)
-    with st.form("them_congty"):
-        ma      = st.text_input("Mã Công Ty")
-        ten     = st.text_input("Tên Công Ty")
-        dia_chi = st.text_input("Địa Chỉ")
-        if st.form_submit_button("Thêm", use_container_width=True):
-            if ma and ten:
-                try:
-                    insert_congty(ma, ten, dia_chi, "active", actor)
-                    st.success("Đã thêm!")
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-            else:
-                st.error("Vui lòng điền Mã và Tên công ty.")
+    if not _perm("themcongty", "new"):
+        st.warning("Bạn không có quyền thêm mới.")
+    else:
+        with st.form("them_congty"):
+            ma      = st.text_input("Mã Công Ty")
+            ten     = st.text_input("Tên Công Ty")
+            dia_chi = st.text_input("Địa Chỉ")
+            if st.form_submit_button("Thêm", use_container_width=True):
+                if ma and ten:
+                    try:
+                        insert_congty(ma, ten, dia_chi, "active", actor)
+                        st.success("Đã thêm!")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+                else:
+                    st.error("Vui lòng điền Mã và Tên công ty.")
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- Quản Lý Công Ty page (admin only) ---
 if current_page == "qlcongty":
-    if not is_admin:
+    if not _perm("qlcongty"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -438,50 +511,62 @@ if current_page == "qlcongty":
         tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa thông tin", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_edit:
-            with st.form("ql_edit_congty"):
-                e1, e2 = st.columns(2)
-                ten_e     = e1.text_input("Tên Công Ty", value=str(r["TenCongTy"]))
-                dia_chi_e = e2.text_input("Địa Chỉ", value=str(r["DiaChi"]) if r["DiaChi"] else "")
-                if st.form_submit_button("Lưu", use_container_width=True):
-                    try:
-                        update_congty(r["MaCongTy"], ten_e, dia_chi_e, actor)
-                        st.success("Đã cập nhật!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+            if not _perm("qlcongty", "edit"):
+                st.warning("Bạn không có quyền sửa.")
+            else:
+                with st.form("ql_edit_congty"):
+                    e1, e2 = st.columns(2)
+                    ten_e     = e1.text_input("Tên Công Ty", value=str(r["TenCongTy"]))
+                    dia_chi_e = e2.text_input("Địa Chỉ", value=str(r["DiaChi"]) if r["DiaChi"] else "")
+                    if st.form_submit_button("Lưu", use_container_width=True):
+                        try:
+                            update_congty(r["MaCongTy"], ten_e, dia_chi_e, actor)
+                            st.success("Đã cập nhật!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
         with tab_status:
-            with st.form("ql_status_congty"):
-                b1, b2 = st.columns(2)
-                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                try:
-                    if do_inactive:
-                        soft_delete("congty", "MaCongTy", r["MaCongTy"], actor)
-                        st.success("Đã vô hiệu hóa!")
-                        st.rerun()
-                    elif do_active:
-                        set_active("congty", "MaCongTy", r["MaCongTy"], actor)
-                        st.success("Đã kích hoạt!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-
-        with tab_del:
-            st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenCongTy']}**? Hành động này không thể hoàn tác.")
-            with st.form("ql_del_congty"):
-                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+            if not _perm("qlcongty", "edit"):
+                st.warning("Bạn không có quyền thay đổi trạng thái.")
+            else:
+                with st.form("ql_status_congty"):
+                    b1, b2 = st.columns(2)
+                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        hard_delete("congty", "MaCongTy", r["MaCongTy"])
-                        st.success("Đã xóa!")
-                        st.rerun()
+                        if do_inactive:
+                            soft_delete("congty", "MaCongTy", r["MaCongTy"], actor)
+                            st.success("Đã vô hiệu hóa!")
+                            st.rerun()
+                        elif do_active:
+                            set_active("congty", "MaCongTy", r["MaCongTy"], actor)
+                            st.success("Đã kích hoạt!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+
+        with tab_del:
+            if not _perm("qlcongty", "delete"):
+                st.warning("Bạn không có quyền xóa.")
+            else:
+                st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenCongTy']}**? Hành động này không thể hoàn tác.")
+                with st.form("ql_del_congty"):
+                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                        try:
+                            hard_delete("congty", "MaCongTy", r["MaCongTy"])
+                            st.success("Đã xóa!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
     st.stop()
 
 
 # --- Thực Đơn Hôm Nay page ---
 if current_page == "thucdon":
+    if not _perm("thucdon"):
+        st.error("Không có quyền truy cập.")
+        st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 4px 0;'>📋 Thực Đơn Hôm Nay</h2>", unsafe_allow_html=True)
@@ -549,6 +634,9 @@ if current_page == "thucdon":
 
 # --- Đặt Món (order) page ---
 if current_page == "order":
+    if not _perm("order"):
+        st.error("Không có quyền truy cập.")
+        st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 4px 0;'>🛒 Đặt Món</h2>", unsafe_allow_html=True)
@@ -674,9 +762,9 @@ if current_page == "order":
         border = "2px solid #EE1C25" if is_sel else "1px solid #eee"
         img_html = (
             f'<img src="{img_url}" style="width:100%;height:130px;'
-            f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">' #67
+            f'object-fit:cover;border-radius:10px 10px 0 0;display:block;">'
             if img_url else
-            '<div style="width:100%;height:100px;background:#f5f5f5;'
+            '<div style="width:100%;height:100px;background:#f  5f5f5;'
             'border-radius:10px 10px 0 0;display:flex;align-items:center;'
             'justify-content:center;font-size:2rem;">🍽️</div>'
         )
@@ -773,7 +861,7 @@ if current_page == "qrconfirm":
 
 # --- Quản Lý Đặt Món page (admin only) ---
 if current_page == "qldatmon":
-    if not is_admin:
+    if not _perm("qldatmon"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -832,65 +920,74 @@ if current_page == "qldatmon":
         tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_edit:
-            vk = list(vitri_opts_dm.keys())
-            cv = next((k for k, v in vitri_opts_dm.items() if v == r["MaDiaDiem"]), vk[0])
-            mk = list(monan_opts_dm.keys())
-            cm = next((k for k, v in monan_opts_dm.items() if v == r["MaMonAn"]), mk[0])
-            nk = list(nv_opts_dm.keys())
-            cn = next((k for k, v in nv_opts_dm.items() if v == r["MaNhanVien"]), nk[0])
-            with st.form("edit_datmon"):
-                e1, e2 = st.columns(2)
-                ngay_e  = e1.date_input("Ngày", value=r["Ngay"].date() if hasattr(r["Ngay"], "date") else r["Ngay"], format="DD/MM/YYYY")
-                vitri_e = e2.selectbox("Địa Điểm", vk, index=vk.index(cv))
-                e3, e4  = st.columns(2)
-                monan_e = e3.selectbox("Món Ăn", mk, index=mk.index(cm))
-                nv_e    = e4.selectbox("Nhân Viên", nk, index=nk.index(cn))
-                e5, e6  = st.columns(2)
-                sl_e    = e5.number_input("Số Lượng", min_value=1, step=1, value=int(r["SoLuong"]))
-                dg_e    = e6.number_input("Đơn Giá", min_value=0, step=1000, value=int(r["DonGia"]))
-                if st.form_submit_button("Lưu", use_container_width=True):
-                    try:
-                        update_datmon(r["Id"], ngay_e, vitri_opts_dm[vitri_e],
-                                      monan_opts_dm[monan_e], nv_opts_dm[nv_e],
-                                      sl_e, dg_e, actor)
-                        st.success("Đã cập nhật!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+            if not _perm("qldatmon", "edit"):
+                st.warning("Bạn không có quyền sửa.")
+            else:
+                vk = list(vitri_opts_dm.keys())
+                cv = next((k for k, v in vitri_opts_dm.items() if v == r["MaDiaDiem"]), vk[0])
+                mk = list(monan_opts_dm.keys())
+                cm = next((k for k, v in monan_opts_dm.items() if v == r["MaMonAn"]), mk[0])
+                nk = list(nv_opts_dm.keys())
+                cn = next((k for k, v in nv_opts_dm.items() if v == r["MaNhanVien"]), nk[0])
+                with st.form("edit_datmon"):
+                    e1, e2 = st.columns(2)
+                    ngay_e  = e1.date_input("Ngày", value=r["Ngay"].date() if hasattr(r["Ngay"], "date") else r["Ngay"], format="DD/MM/YYYY")
+                    vitri_e = e2.selectbox("Địa Điểm", vk, index=vk.index(cv))
+                    e3, e4  = st.columns(2)
+                    monan_e = e3.selectbox("Món Ăn", mk, index=mk.index(cm))
+                    nv_e    = e4.selectbox("Nhân Viên", nk, index=nk.index(cn))
+                    e5, e6  = st.columns(2)
+                    sl_e    = e5.number_input("Số Lượng", min_value=1, step=1, value=int(r["SoLuong"]))
+                    dg_e    = e6.number_input("Đơn Giá", min_value=0, step=1000, value=int(r["DonGia"]))
+                    if st.form_submit_button("Lưu", use_container_width=True):
+                        try:
+                            update_datmon(r["Id"], ngay_e, vitri_opts_dm[vitri_e],
+                                          monan_opts_dm[monan_e], nv_opts_dm[nv_e],
+                                          sl_e, dg_e, actor)
+                            st.success("Đã cập nhật!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
         with tab_status:
-            with st.form("status_datmon"):
-                b1, b2 = st.columns(2)
-                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                try:
-                    if do_inactive:
-                        soft_delete("datmon", "Id", r["Id"], actor)
-                        st.success("Đã vô hiệu hóa!")
-                        st.rerun()
-                    elif do_active:
-                        set_active("datmon", "Id", r["Id"], actor)
-                        st.success("Đã kích hoạt!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-
-        with tab_del:
-            st.warning("Xóa hẳn đơn này? Hành động này không thể hoàn tác.")
-            with st.form("del_datmon"):
-                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+            if not _perm("qldatmon", "edit"):
+                st.warning("Bạn không có quyền thay đổi trạng thái.")
+            else:
+                with st.form("status_datmon"):
+                    b1, b2 = st.columns(2)
+                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        hard_delete("datmon", "Id", r["Id"])
-                        st.success("Đã xóa!")
-                        st.rerun()
+                        if do_inactive:
+                            soft_delete("datmon", "Id", r["Id"], actor)
+                            st.success("Đã vô hiệu hóa!")
+                            st.rerun()
+                        elif do_active:
+                            set_active("datmon", "Id", r["Id"], actor)
+                            st.success("Đã kích hoạt!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+
+        with tab_del:
+            if not _perm("qldatmon", "delete"):
+                st.warning("Bạn không có quyền xóa.")
+            else:
+                st.warning("Xóa hẳn đơn này? Hành động này không thể hoàn tác.")
+                with st.form("del_datmon"):
+                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                        try:
+                            hard_delete("datmon", "Id", r["Id"])
+                            st.success("Đã xóa!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
     st.stop()
 
 
 # --- Thêm Đặt Món page (admin only) ---
 if current_page == "themdatmon":
-    if not is_admin:
+    if not _perm("themdatmon"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -909,29 +1006,32 @@ if current_page == "themdatmon":
     ma_congty_add = vitri_detail_add[1] if vitri_detail_add else None
     monan_opts_tdm, prices_tdm = get_monan_options_for_vitri(ma_vitri_add)
 
-    with st.form("them_datmon"):
-        e1, e2 = st.columns(2)
-        monan_add = e1.selectbox("Món Ăn", list(monan_opts_tdm.keys()))
-        nv_add    = e2.selectbox("Nhân Viên", list(nv_opts_tdm.keys()))
-        e3, e4 = st.columns(2)
-        sl_add = e3.number_input("Số Lượng", min_value=1, step=1, value=1)
-        ma_monan_tdm = monan_opts_tdm.get(monan_add)
-        default_gia  = int(prices_tdm.get(ma_monan_tdm, 0)) if ma_monan_tdm else 0
-        dg_add = e4.number_input("Đơn Giá", min_value=0, step=1000, value=default_gia)
-        if st.form_submit_button("➕ Thêm", use_container_width=True):
-            try:
-                insert_datmon(ngay_add, ma_vitri_add, ma_congty_add,
-                              monan_opts_tdm[monan_add], nv_opts_tdm[nv_add],
-                              sl_add, dg_add, actor, '')
-                st.success("Đã thêm!")
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
+    if not _perm("themdatmon", "new"):
+        st.warning("Bạn không có quyền thêm mới.")
+    else:
+        with st.form("them_datmon"):
+            e1, e2 = st.columns(2)
+            monan_add = e1.selectbox("Món Ăn", list(monan_opts_tdm.keys()))
+            nv_add    = e2.selectbox("Nhân Viên", list(nv_opts_tdm.keys()))
+            e3, e4 = st.columns(2)
+            sl_add = e3.number_input("Số Lượng", min_value=1, step=1, value=1)
+            ma_monan_tdm = monan_opts_tdm.get(monan_add)
+            default_gia  = int(prices_tdm.get(ma_monan_tdm, 0)) if ma_monan_tdm else 0
+            dg_add = e4.number_input("Đơn Giá", min_value=0, step=1000, value=default_gia)
+            if st.form_submit_button("➕ Thêm", use_container_width=True):
+                try:
+                    insert_datmon(ngay_add, ma_vitri_add, ma_congty_add,
+                                  monan_opts_tdm[monan_add], nv_opts_tdm[nv_add],
+                                  sl_add, dg_add, actor, '')
+                    st.success("Đã thêm!")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
     st.stop()
 
 
 # --- Quản Lý Thực Đơn page (admin only) ---
 if current_page == "qlthucdon":
-    if not is_admin:
+    if not _perm("qlthucdon"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -984,68 +1084,77 @@ if current_page == "qlthucdon":
             tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa món", "🔄 Trạng thái", "🗑️ Xóa"])
 
             with tab_edit:
-                other_codes = all_codes - {row_td["MaMonAn"]}
-                available_edit = {k: v for k, v in monan_opts.items() if v not in other_codes}
-                cur_label = next((k for k, v in monan_opts.items() if v == row_td["MaMonAn"]), None)
-                edit_keys = list(available_edit.keys())
-                cur_idx = edit_keys.index(cur_label) if cur_label in edit_keys else 0
-                _ts = str(row_td.get("ThoiGianBatDau", "") or "")
-                _cur_time = datetime.strptime(_ts, "%H:%M").time() if _ts else None
-                try:
-                    _ss_val = int(row_td["SoSuatDuKien"])
-                except (TypeError, ValueError):
-                    _ss_val = 0
-                with st.form("edit_thucdon"):
-                    sel_edit = st.selectbox("Món ăn", edit_keys, index=cur_idx)
-                    tc1, tc2 = st.columns(2)
-                    tgbd_e = tc1.time_input("Giờ Bắt Đầu", value=_cur_time)
-                    so_suat_e = tc2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=_ss_val)
-                    if st.form_submit_button("Lưu", use_container_width=True):
-                        try:
-                            update_thucdon(int(row_td["Id"]), available_edit[sel_edit], actor,
-                                           tgbd_e, int(so_suat_e) if so_suat_e else None)
-                            st.success("Đã cập nhật!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi: {e}")
+                if not _perm("qlthucdon", "edit"):
+                    st.warning("Bạn không có quyền sửa.")
+                else:
+                    other_codes = all_codes - {row_td["MaMonAn"]}
+                    available_edit = {k: v for k, v in monan_opts.items() if v not in other_codes}
+                    cur_label = next((k for k, v in monan_opts.items() if v == row_td["MaMonAn"]), None)
+                    edit_keys = list(available_edit.keys())
+                    cur_idx = edit_keys.index(cur_label) if cur_label in edit_keys else 0
+                    _ts = str(row_td.get("ThoiGianBatDau", "") or "")
+                    _cur_time = datetime.strptime(_ts, "%H:%M").time() if _ts else None
+                    try:
+                        _ss_val = int(row_td["SoSuatDuKien"])
+                    except (TypeError, ValueError):
+                        _ss_val = 0
+                    with st.form("edit_thucdon"):
+                        sel_edit = st.selectbox("Món ăn", edit_keys, index=cur_idx)
+                        tc1, tc2 = st.columns(2)
+                        tgbd_e = tc1.time_input("Giờ Bắt Đầu", value=_cur_time)
+                        so_suat_e = tc2.number_input("Số Suất Dự Kiến", min_value=0, step=1, value=_ss_val)
+                        if st.form_submit_button("Lưu", use_container_width=True):
+                            try:
+                                update_thucdon(int(row_td["Id"]), available_edit[sel_edit], actor,
+                                               tgbd_e, int(so_suat_e) if so_suat_e else None)
+                                st.success("Đã cập nhật!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
 
             with tab_status:
-                with st.form("status_thucdon"):
-                    b1, b2, b3 = st.columns(3)
-                    do_done     = b1.form_submit_button("🏁 Kết thúc hôm nay", use_container_width=True)
-                    do_inactive = b2.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                    do_active   = b3.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                    try:
-                        if do_done:
-                            finish_thucdon_today(ma_vitri, row_td["MaMonAn"], actor)
-                            st.success("Đã kết thúc phục vụ hôm nay!")
-                            st.rerun()
-                        elif do_inactive:
-                            soft_delete("thucdon", "Id", int(row_td["Id"]), actor)
-                            st.success("Đã vô hiệu hóa!")
-                            st.rerun()
-                        elif do_active:
-                            set_active("thucdon", "Id", int(row_td["Id"]), actor)
-                            st.success("Đã kích hoạt!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-
-            with tab_del:
-                st.warning(f"Xóa hẳn **{row_td['TenMonAn']}** khỏi thực đơn? Hành động này không thể hoàn tác.")
-                with st.form("del_thucdon"):
-                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                if not _perm("qlthucdon", "edit"):
+                    st.warning("Bạn không có quyền thay đổi trạng thái.")
+                else:
+                    with st.form("status_thucdon"):
+                        b1, b2, b3 = st.columns(3)
+                        do_done     = b1.form_submit_button("🏁 Kết thúc hôm nay", use_container_width=True)
+                        do_inactive = b2.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                        do_active   = b3.form_submit_button("✅ Kích hoạt", use_container_width=True)
                         try:
-                            delete_thucdon(int(row_td["Id"]))
-                            st.success("Đã xóa!")
-                            st.rerun()
+                            if do_done:
+                                finish_thucdon_today(ma_vitri, row_td["MaMonAn"], actor)
+                                st.success("Đã kết thúc phục vụ hôm nay!")
+                                st.rerun()
+                            elif do_inactive:
+                                soft_delete("thucdon", "Id", int(row_td["Id"]), actor)
+                                st.success("Đã vô hiệu hóa!")
+                                st.rerun()
+                            elif do_active:
+                                set_active("thucdon", "Id", int(row_td["Id"]), actor)
+                                st.success("Đã kích hoạt!")
+                                st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
+
+            with tab_del:
+                if not _perm("qlthucdon", "delete"):
+                    st.warning("Bạn không có quyền xóa.")
+                else:
+                    st.warning(f"Xóa hẳn **{row_td['TenMonAn']}** khỏi thực đơn? Hành động này không thể hoàn tác.")
+                    with st.form("del_thucdon"):
+                        if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                            try:
+                                delete_thucdon(int(row_td["Id"]))
+                                st.success("Đã xóa!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Thêm Thực Đơn page (admin only) ---
 if current_page == "themthucdon":
-    if not is_admin:
+    if not _perm("themthucdon"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -1077,7 +1186,9 @@ if current_page == "themthucdon":
     st.markdown(f"**{vitri_sel} · {chu_ky_sel}** — hiện có {len(active_codes)} món")
 
     available = {k: v for k, v in monan_opts.items() if v not in all_codes}
-    if available:
+    if not _perm("themthucdon", "new"):
+        st.warning("Bạn không có quyền thêm mới.")
+    elif available:
         with st.form("add_thucdon"):
             sel_add = st.selectbox("Món ăn", list(available.keys()))
             ac1, ac2 = st.columns(2)
@@ -1097,33 +1208,36 @@ if current_page == "themthucdon":
 
 # --- Thêm Món Ăn page (admin only) ---
 if current_page == "themmonan":
-    if not is_admin:
+    if not _perm("themmonan"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 16px 0;'>➕ Thêm Món Ăn</h2>", unsafe_allow_html=True)
     st.markdown("<div style='max-width:480px;'>", unsafe_allow_html=True)
-    with st.form("them_monan"):
-        ma       = st.text_input("Mã Món Ăn")
-        ten      = st.text_input("Tên Món Ăn")
-        don_gia  = st.number_input("Đơn Giá", min_value=0, step=1000)
-        hinh_anh = st.text_input("Link Hình Ảnh (URL)")
-        if st.form_submit_button("Thêm", use_container_width=True):
-            if ma and ten:
-                try:
-                    insert_monan(ma, ten, don_gia, "active", actor, resolve_image(hinh_anh) or hinh_anh)
-                    st.success("Đã thêm!")
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-            else:
-                st.error("Vui lòng điền Mã và Tên món ăn.")
+    if not _perm("themmonan", "new"):
+        st.warning("Bạn không có quyền thêm mới.")
+    else:
+        with st.form("them_monan"):
+            ma       = st.text_input("Mã Món Ăn")
+            ten      = st.text_input("Tên Món Ăn")
+            don_gia  = st.number_input("Đơn Giá", min_value=0, step=1000)
+            hinh_anh = st.text_input("Link Hình Ảnh (URL)")
+            if st.form_submit_button("Thêm", use_container_width=True):
+                if ma and ten:
+                    try:
+                        insert_monan(ma, ten, don_gia, "active", actor, resolve_image(hinh_anh) or hinh_anh)
+                        st.success("Đã thêm!")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+                else:
+                    st.error("Vui lòng điền Mã và Tên món ăn.")
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- Quản Lý Món Ăn page (admin only) ---
 if current_page == "qlmonan":
-    if not is_admin:
+    if not _perm("qlmonan"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -1157,80 +1271,92 @@ if current_page == "qlmonan":
         tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa thông tin", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_edit:
-            with st.form("ql_edit_monan"):
-                e1, e2 = st.columns(2)
-                ten_e     = e1.text_input("Tên Món Ăn", value=str(r["TenMonAn"]))
-                don_gia_e = e2.number_input("Đơn Giá", min_value=0, step=1000, value=int(r["DonGia"]))
-                hinh_anh_e = st.text_input("Link Hình Ảnh (URL)", value=str(r["HinhAnh"]) if r["HinhAnh"] else "")
-                img_preview = resolve_image(hinh_anh_e)
-                if img_preview:
-                    st.image(img_preview, width=160)
-                if st.form_submit_button("Lưu", use_container_width=True):
-                    try:
-                        update_monan(r["MaMonAn"], ten_e, don_gia_e, actor, resolve_image(hinh_anh_e) or hinh_anh_e)
-                        st.success("Đã cập nhật!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+            if not _perm("qlmonan", "edit"):
+                st.warning("Bạn không có quyền sửa.")
+            else:
+                with st.form("ql_edit_monan"):
+                    e1, e2 = st.columns(2)
+                    ten_e     = e1.text_input("Tên Món Ăn", value=str(r["TenMonAn"]))
+                    don_gia_e = e2.number_input("Đơn Giá", min_value=0, step=1000, value=int(r["DonGia"]))
+                    hinh_anh_e = st.text_input("Link Hình Ảnh (URL)", value=str(r["HinhAnh"]) if r["HinhAnh"] else "")
+                    img_preview = resolve_image(hinh_anh_e)
+                    if img_preview:
+                        st.image(img_preview, width=160)
+                    if st.form_submit_button("Lưu", use_container_width=True):
+                        try:
+                            update_monan(r["MaMonAn"], ten_e, don_gia_e, actor, resolve_image(hinh_anh_e) or hinh_anh_e)
+                            st.success("Đã cập nhật!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
         with tab_status:
-            with st.form("ql_status_monan"):
-                b1, b2 = st.columns(2)
-                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                try:
-                    if do_inactive:
-                        soft_delete("monan", "MaMonAn", r["MaMonAn"], actor)
-                        st.success("Đã vô hiệu hóa!")
-                        st.rerun()
-                    elif do_active:
-                        set_active("monan", "MaMonAn", r["MaMonAn"], actor)
-                        st.success("Đã kích hoạt!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-
-        with tab_del:
-            st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenMonAn']}**? Hành động này không thể hoàn tác.")
-            with st.form("ql_del_monan"):
-                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+            if not _perm("qlmonan", "edit"):
+                st.warning("Bạn không có quyền thay đổi trạng thái.")
+            else:
+                with st.form("ql_status_monan"):
+                    b1, b2 = st.columns(2)
+                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        hard_delete("monan", "MaMonAn", r["MaMonAn"])
-                        st.success("Đã xóa!")
-                        st.rerun()
+                        if do_inactive:
+                            soft_delete("monan", "MaMonAn", r["MaMonAn"], actor)
+                            st.success("Đã vô hiệu hóa!")
+                            st.rerun()
+                        elif do_active:
+                            set_active("monan", "MaMonAn", r["MaMonAn"], actor)
+                            st.success("Đã kích hoạt!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+
+        with tab_del:
+            if not _perm("qlmonan", "delete"):
+                st.warning("Bạn không có quyền xóa.")
+            else:
+                st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenMonAn']}**? Hành động này không thể hoàn tác.")
+                with st.form("ql_del_monan"):
+                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                        try:
+                            hard_delete("monan", "MaMonAn", r["MaMonAn"])
+                            st.success("Đã xóa!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Thêm Địa Điểm page (admin only) ---
 if current_page == "themvitri":
-    if not is_admin:
+    if not _perm("themvitri"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 16px 0;'>➕ Thêm Địa Điểm</h2>", unsafe_allow_html=True)
     st.markdown("<div style='max-width:480px;'>", unsafe_allow_html=True)
-    congty_opts_tv = get_congty_options()
-    with st.form("them_vitri"):
-        ma      = st.text_input("Mã Địa Điểm")
-        ten     = st.text_input("Tên Địa Điểm")
-        congty_sel = st.selectbox("Công Ty", list(congty_opts_tv.keys()))
-        if st.form_submit_button("Thêm", use_container_width=True):
-            if ma and ten:
-                try:
-                    insert_vitri(ma, ten, congty_opts_tv[congty_sel], "active", actor)
-                    st.success("Đã thêm!")
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-            else:
-                st.error("Vui lòng điền Mã và Tên địa điểm.")
+    if not _perm("themvitri", "new"):
+        st.warning("Bạn không có quyền thêm mới.")
+    else:
+        congty_opts_tv = get_congty_options()
+        with st.form("them_vitri"):
+            ma      = st.text_input("Mã Địa Điểm")
+            ten     = st.text_input("Tên Địa Điểm")
+            congty_sel = st.selectbox("Công Ty", list(congty_opts_tv.keys()))
+            if st.form_submit_button("Thêm", use_container_width=True):
+                if ma and ten:
+                    try:
+                        insert_vitri(ma, ten, congty_opts_tv[congty_sel], "active", actor)
+                        st.success("Đã thêm!")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+                else:
+                    st.error("Vui lòng điền Mã và Tên địa điểm.")
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- Quản Lý Địa Điểm page (admin only) ---
 if current_page == "qlvitri":
-    if not is_admin:
+    if not _perm("qlvitri"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -1266,58 +1392,67 @@ if current_page == "qlvitri":
         tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa thông tin", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_edit:
-            congty_opts_ql = get_congty_options()
-            ck = list(congty_opts_ql.keys())
-            cc = next((k for k, v in congty_opts_ql.items() if v == r["MaCongTy"]), ck[0])
-            with st.form("ql_edit_vitri"):
-                e1, e2 = st.columns(2)
-                ten_e    = e1.text_input("Tên Địa Điểm", value=str(r["TenViTri"]))
-                congty_e = e2.selectbox("Công Ty", ck, index=ck.index(cc))
-                st.markdown("**Bữa ăn phục vụ**")
-                b1, b2, b3 = st.columns(3)
-                sang_e  = b1.checkbox("Sáng",  value=bool(r["BuaSang"]))
-                trua_e  = b2.checkbox("Trưa",  value=bool(r["BuaTrua"]))
-                chieu_e = b3.checkbox("Chiều", value=bool(r["BuaChieu"]))
-                if st.form_submit_button("Lưu", use_container_width=True):
-                    try:
-                        update_vitri(r["MaViTri"], ten_e, congty_opts_ql[congty_e], sang_e, trua_e, chieu_e, actor)
-                        st.success("Đã cập nhật!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+            if not _perm("qlvitri", "edit"):
+                st.warning("Bạn không có quyền sửa.")
+            else:
+                congty_opts_ql = get_congty_options()
+                ck = list(congty_opts_ql.keys())
+                cc = next((k for k, v in congty_opts_ql.items() if v == r["MaCongTy"]), ck[0])
+                with st.form("ql_edit_vitri"):
+                    e1, e2 = st.columns(2)
+                    ten_e    = e1.text_input("Tên Địa Điểm", value=str(r["TenViTri"]))
+                    congty_e = e2.selectbox("Công Ty", ck, index=ck.index(cc))
+                    st.markdown("**Bữa ăn phục vụ**")
+                    b1, b2, b3 = st.columns(3)
+                    sang_e  = b1.checkbox("Sáng",  value=bool(r["BuaSang"]))
+                    trua_e  = b2.checkbox("Trưa",  value=bool(r["BuaTrua"]))
+                    chieu_e = b3.checkbox("Chiều", value=bool(r["BuaChieu"]))
+                    if st.form_submit_button("Lưu", use_container_width=True):
+                        try:
+                            update_vitri(r["MaViTri"], ten_e, congty_opts_ql[congty_e], sang_e, trua_e, chieu_e, actor)
+                            st.success("Đã cập nhật!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
         with tab_status:
-            with st.form("ql_status_vitri"):
-                b1, b2 = st.columns(2)
-                do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
-                do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
-                try:
-                    if do_inactive:
-                        soft_delete("vitri", "MaViTri", r["MaViTri"], actor)
-                        st.success("Đã vô hiệu hóa!")
-                        st.rerun()
-                    elif do_active:
-                        set_active("vitri", "MaViTri", r["MaViTri"], actor)
-                        st.success("Đã kích hoạt!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-
-        with tab_del:
-            st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenViTri']}**? Hành động này không thể hoàn tác.")
-            with st.form("ql_del_vitri"):
-                if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+            if not _perm("qlvitri", "edit"):
+                st.warning("Bạn không có quyền thay đổi trạng thái.")
+            else:
+                with st.form("ql_status_vitri"):
+                    b1, b2 = st.columns(2)
+                    do_inactive = b1.form_submit_button("🚫 Vô hiệu hóa", use_container_width=True)
+                    do_active   = b2.form_submit_button("✅ Kích hoạt", use_container_width=True)
                     try:
-                        hard_delete("vitri", "MaViTri", r["MaViTri"])
-                        st.success("Đã xóa!")
-                        st.rerun()
+                        if do_inactive:
+                            soft_delete("vitri", "MaViTri", r["MaViTri"], actor)
+                            st.success("Đã vô hiệu hóa!")
+                            st.rerun()
+                        elif do_active:
+                            set_active("vitri", "MaViTri", r["MaViTri"], actor)
+                            st.success("Đã kích hoạt!")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+
+        with tab_del:
+            if not _perm("qlvitri", "delete"):
+                st.warning("Bạn không có quyền xóa.")
+            else:
+                st.warning(f"Bạn có chắc muốn xóa hẳn **{r['TenViTri']}**? Hành động này không thể hoàn tác.")
+                with st.form("ql_del_vitri"):
+                    if st.form_submit_button("🗑️ Xóa hẳn", use_container_width=True):
+                        try:
+                            hard_delete("vitri", "MaViTri", r["MaViTri"])
+                            st.success("Đã xóa!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Quản Lý Mã QR page (admin only) ---
 if current_page == "qlqr":
-    if not is_admin:
+    if not _perm("qlqr"):
         st.error("Không có quyền truy cập.")
         st.stop()
     top_header()
@@ -1366,6 +1501,9 @@ if current_page == "qlqr":
 top_header()
 sidebar_nav()
 selected_key = current_page if current_page in ["datmon", "congty", "diadiem", "nhanvien"] else "datmon"
+if not _perm(selected_key):
+    st.error("Không có quyền truy cập.")
+    st.stop()
 
 page_titles = {
     "datmon":   "🍱 Đặt Món",

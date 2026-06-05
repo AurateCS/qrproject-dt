@@ -662,6 +662,64 @@ def delete_thucdon(id_val):
     _clear_thucdon_cache()
 
 
+@st.cache_data(ttl=120)
+def get_phanquyen_grid(tk):
+    c = get_conn()
+    df = pd.read_sql(
+        'SELECT s."controller",s."title",'
+        'COALESCE(p."access_yn",0) AS "access_yn",'
+        'COALESCE(p."new_yn",0) AS "new_yn",'
+        'COALESCE(p."edit_yn",0) AS "edit_yn",'
+        'COALESCE(p."delete_yn",0) AS "delete_yn" '
+        'FROM sidebar s '
+        'LEFT JOIN phanquyen p ON p."controller"=s."controller" AND p."TK"=%s '
+        'WHERE s."sidebar_cha" IS NOT NULL AND s."TrangThai"=\'active\' '
+        'ORDER BY s."sidebar"',
+        c, params=[tk]
+    )
+    c.close()
+    return df
+
+
+def save_phanquyen(tk, rows):
+    c = get_conn()
+    cur = c.cursor()
+    for row in rows:
+        cur.execute(
+            'INSERT INTO phanquyen ("TK","controller","access_yn","new_yn","edit_yn","delete_yn") '
+            'VALUES (%s,%s,%s,%s,%s,%s) '
+            'ON CONFLICT ("TK","controller") DO UPDATE SET '
+            '"access_yn"=EXCLUDED."access_yn","new_yn"=EXCLUDED."new_yn",'
+            '"edit_yn"=EXCLUDED."edit_yn","delete_yn"=EXCLUDED."delete_yn"',
+            (tk, row["controller"], int(row["access_yn"]), int(row["new_yn"]),
+             int(row["edit_yn"]), int(row["delete_yn"]))
+        )
+    c.commit()
+    c.close()
+    get_phanquyen_grid.clear()
+    get_user_perm.clear()
+
+
+@st.cache_data(ttl=120)
+def get_user_perm(tk):
+    c = get_conn()
+    df = pd.read_sql(
+        'SELECT "controller","access_yn","new_yn","edit_yn","delete_yn" '
+        'FROM phanquyen WHERE "TK"=%s',
+        c, params=[tk]
+    )
+    c.close()
+    return {
+        row["controller"]: {
+            "access": bool(row["access_yn"]),
+            "new": bool(row["new_yn"]),
+            "edit": bool(row["edit_yn"]),
+            "delete": bool(row["delete_yn"]),
+        }
+        for _, row in df.iterrows()
+    }
+
+
 @st.cache_data(ttl=300)
 def get_sidebar(username=''):
     try:
@@ -750,8 +808,9 @@ def _sidebar_fallback():
         {
             "section": "Tài Khoản",
             "items": [
-                {"label": "👥 Tài Khoản", "key": "taikhoan",  "admin": True},
-                {"label": "📝 Đăng Ký",   "key": "dangnhap",  "admin": True},
+                {"label": "👥 Tài Khoản",  "key": "taikhoan",    "admin": True},
+                {"label": "📝 Đăng Ký",    "key": "dangnhap",    "admin": True},
+                {"label": "🔐 Phân Quyền", "key": "qlphanquyen", "admin": True},
             ],
         },
         {
