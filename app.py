@@ -82,6 +82,7 @@ st.markdown("""
 
 
 @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def resolve_image(url: str) -> str | None:
     if not url or not isinstance(url, str):
         return None
