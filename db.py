@@ -3,6 +3,7 @@ import psycopg2
 import pandas as pd
 import streamlit as st
 from datetime import datetime
+from sqlalchemy import create_engine
 
 def _now():
     return datetime.now().replace(microsecond=0)
@@ -15,8 +16,13 @@ def _get_db_url():
         return os.environ.get("DATABASE_URL", "")
 
 
+@st.cache_resource
+def _get_engine():
+    return create_engine(_get_db_url(), pool_pre_ping=True, pool_size=5, max_overflow=10)
+
+
 def get_conn():
-    return psycopg2.connect(_get_db_url())
+    return _get_engine().raw_connection()
 
 
 column_labels = {
@@ -330,7 +336,6 @@ def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, 
         get_pending_order.clear()
 
 
-@st.cache_data(ttl=10)
 @st.cache_data(ttl=30)
 def get_pending_order(username):
     c = get_conn()
