@@ -771,45 +771,19 @@ def _sidebar_fallback():
             ],
         },
         {
-            "section": "Đặt Món",
+            "section": "Quản Lý",
             "items": [
-                {"label": "📋 Quản Lý Đặt Món", "key": "qldatmon",   "admin": True},
-                {"label": "➕ Thêm Đặt Món",     "key": "themdatmon", "admin": True},
+                {"label": "📋 Quản Lý Đặt Món",  "key": "qldatmon",  "admin": True},
+                {"label": "📅 Quản Lý Thực Đơn", "key": "qlthucdon", "admin": True},
+                {"label": "🍱 Món Ăn",            "key": "qlmonan",   "admin": True},
+                {"label": "📍 Địa Điểm",          "key": "qlvitri",   "admin": True},
+                {"label": "🏢 Công Ty",            "key": "qlcongty",  "admin": True},
             ],
         },
         {
-            "section": "Thực Đơn",
-            "items": [
-                {"label": "📅 Quản Lý Thực Đơn", "key": "qlthucdon",   "admin": True},
-                {"label": "➕ Thêm Thực Đơn",     "key": "themthucdon", "admin": True},
-            ],
-        },
-        {
-            "section": "Món Ăn",
-            "items": [
-                {"label": "🍱 Món Ăn",      "key": "qlmonan",   "admin": True},
-                {"label": "➕ Thêm Món Ăn", "key": "themmonan", "admin": True},
-            ],
-        },
-        {
-            "section": "Địa Điểm",
-            "items": [
-                {"label": "📍 Địa Điểm",     "key": "qlvitri",   "admin": True},
-                {"label": "➕ Thêm Địa Điểm","key": "themvitri", "admin": True},
-            ],
-        },
-        {
-            "section": "Công Ty",
-            "items": [
-                {"label": "🏢 Công Ty",     "key": "qlcongty",  "admin": True},
-                {"label": "➕ Thêm Công Ty","key": "themcongty","admin": True},
-            ],
-        },
-        {
-            "section": "Tài Khoản",
+            "section": "Quản Lý Nhân Viên",
             "items": [
                 {"label": "👥 Tài Khoản",  "key": "taikhoan",    "admin": True},
-                {"label": "📝 Đăng Ký",    "key": "dangnhap",    "admin": True},
                 {"label": "🔐 Phân Quyền", "key": "qlphanquyen", "admin": True},
             ],
         },
