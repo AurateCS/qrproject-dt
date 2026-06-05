@@ -331,6 +331,7 @@ def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, 
 
 
 @st.cache_data(ttl=10)
+@st.cache_data(ttl=30)
 def get_pending_order(username):
     c = get_conn()
     cur = c.cursor()
