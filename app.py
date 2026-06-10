@@ -434,18 +434,15 @@ if current_page == "qlphanquyen":
     st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
 
     _pq_ro = not _perm("qlphanquyen", "edit")
-    _base_cfg = {
-        "controller": st.column_config.TextColumn("Controller", disabled=True, width="small"),
-        "title":      st.column_config.TextColumn("Menu", disabled=True),
-    }
+    _title_cfg = {"title": st.column_config.TextColumn("Chức Năng", disabled=True)}
 
     edited_parts = {}
 
     if not df_access_only.empty:
         st.markdown("**Xem**")
         edited_parts["access_only"] = st.data_editor(
-            df_access_only[["controller", "title", "access_yn"]],
-            column_config={**_base_cfg,
+            df_access_only[["title", "access_yn"]],
+            column_config={**_title_cfg,
                 "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_ro),
             },
             hide_index=True, use_container_width=True, key=f"pq_ao_{selected_tk}",
@@ -454,8 +451,8 @@ if current_page == "qlphanquyen":
     if not df_access_edit.empty:
         st.markdown("**Quản Lý Quyền**")
         edited_parts["access_edit"] = st.data_editor(
-            df_access_edit[["controller", "title", "access_yn", "edit_yn"]],
-            column_config={**_base_cfg,
+            df_access_edit[["title", "access_yn", "edit_yn"]],
+            column_config={**_title_cfg,
                 "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_ro),
                 "edit_yn":   st.column_config.CheckboxColumn("Sửa",      disabled=_pq_ro),
             },
@@ -465,8 +462,8 @@ if current_page == "qlphanquyen":
     if not df_full.empty:
         st.markdown("**Quản Lý**")
         edited_parts["full"] = st.data_editor(
-            df_full[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
-            column_config={**_base_cfg,
+            df_full[["title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
+            column_config={**_title_cfg,
                 "access_yn": st.column_config.CheckboxColumn("Truy cập",  disabled=_pq_ro),
                 "new_yn":    st.column_config.CheckboxColumn("Thêm mới",  disabled=_pq_ro),
                 "edit_yn":   st.column_config.CheckboxColumn("Sửa",       disabled=_pq_ro),
@@ -481,15 +478,21 @@ if current_page == "qlphanquyen":
                 import pandas as pd
                 rows = []
                 if "access_only" in edited_parts:
-                    df_ao = edited_parts["access_only"].copy()
+                    df_ao = df_access_only[["controller"]].copy().reset_index(drop=True)
+                    df_ao["access_yn"] = edited_parts["access_only"]["access_yn"].values
                     df_ao["new_yn"] = False; df_ao["edit_yn"] = False; df_ao["delete_yn"] = False
                     rows += df_ao[["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
                 if "access_edit" in edited_parts:
-                    df_ae = edited_parts["access_edit"].copy()
+                    df_ae = df_access_edit[["controller"]].copy().reset_index(drop=True)
+                    df_ae["access_yn"] = edited_parts["access_edit"]["access_yn"].values
+                    df_ae["edit_yn"]   = edited_parts["access_edit"]["edit_yn"].values
                     df_ae["new_yn"] = False; df_ae["delete_yn"] = False
                     rows += df_ae[["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
                 if "full" in edited_parts:
-                    rows += edited_parts["full"][["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
+                    df_fl = df_full[["controller"]].copy().reset_index(drop=True)
+                    for col in ["access_yn","new_yn","edit_yn","delete_yn"]:
+                        df_fl[col] = edited_parts["full"][col].values
+                    rows += df_fl[["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
                 save_phanquyen(selected_tk, rows)
                 st.success("Đã lưu phân quyền!")
                 st.rerun()
