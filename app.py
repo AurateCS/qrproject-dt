@@ -249,7 +249,8 @@ def sidebar_nav():
         btn_idx = 0
         for section in nav:
             _public = {"thucdon", "order"}
-            visible = [i for i in section["items"] if (i["key"] in _public or not i["admin"] or is_admin) and _perm(i["key"])]
+            _explicit = {k for k, v in phanquyen.items() if v.get("access")} if phanquyen else set()
+            visible = [i for i in section["items"] if (i["key"] in _public or i["key"] in _explicit or not i["admin"] or is_admin) and _perm(i["key"])]
             if not visible:
                 continue
             st.markdown(
