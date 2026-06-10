@@ -154,7 +154,7 @@ if token and not st.session_state.get("logged_in"):
 
 # --- Login screen ---
 if not st.session_state.get("logged_in"):
-    intended_page  = st.query_params.get("page", "datmon")
+    intended_page  = st.query_params.get("page", "thucdon")
     intended_vitri = st.query_params.get("vitri", "")
     st.markdown("<div style='max-width:400px;margin:80px auto;'>", unsafe_allow_html=True)
     with st.form("login"):
@@ -172,7 +172,7 @@ if not st.session_state.get("logged_in"):
                 st.session_state.token = token
                 st.session_state.phanquyen = {} if bool(row[2]) else get_user_perm(username)
                 st.query_params["token"] = token
-                st.query_params["page"] = intended_page if intended_page != "menu" else "datmon"
+                st.query_params["page"] = intended_page if intended_page != "menu" else "thucdon"
                 if intended_vitri:
                     st.query_params["vitri"] = intended_vitri
                 st.rerun()
