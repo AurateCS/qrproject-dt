@@ -420,7 +420,7 @@ if current_page == "qlphanquyen":
     selected_name = st.selectbox("Chọn tài khoản", list(nv_opts.keys()), key="pq_user_sel")
     selected_tk = nv_opts[selected_name]
 
-    _PQ_ACCESS_ONLY = {"thucdon", "order", "nhanvien", "congty", "diadiem"}
+    _PQ_ACCESS_ONLY = {"thucdon", "order", "datmon", "nhanvien", "congty", "diadiem"}
     _PQ_ACCESS_EDIT = {"qlphanquyen"}
 
     df_pq = get_phanquyen_grid(selected_tk).copy()
