@@ -562,9 +562,6 @@ if current_page == "qlcongty":
 
 # --- Thực Đơn Hôm Nay page ---
 if current_page == "thucdon":
-    if not _perm("thucdon"):
-        st.error("Không có quyền truy cập.")
-        st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 4px 0;'>📋 Thực Đơn Hôm Nay</h2>", unsafe_allow_html=True)
@@ -632,9 +629,6 @@ if current_page == "thucdon":
 
 # --- Đặt Món (order) page ---
 if current_page == "order":
-    if not _perm("order"):
-        st.error("Không có quyền truy cập.")
-        st.stop()
     top_header()
     sidebar_nav()
     st.markdown("<h2 style='margin:8px 0 4px 0;'>🛒 Đặt Món</h2>", unsafe_allow_html=True)
