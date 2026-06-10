@@ -666,15 +666,7 @@ def delete_thucdon(id_val):
 def get_phanquyen_grid(tk):
     c = get_conn()
     df = pd.read_sql(
-        'SELECT s."controller",s."title",'
-        'COALESCE(p."access_yn",0) AS "access_yn",'
-        'COALESCE(p."new_yn",0) AS "new_yn",'
-        'COALESCE(p."edit_yn",0) AS "edit_yn",'
-        'COALESCE(p."delete_yn",0) AS "delete_yn" '
-        'FROM sidebar s '
-        'LEFT JOIN phanquyen p ON p."controller"=s."controller" AND p."TK"=%s '
-        'WHERE s."sidebar_cha" IS NOT NULL AND s."TrangThai"=\'active\' '
-        'ORDER BY s."sidebar"',
+        'SELECT * FROM sp_get_phanquyen_grid(%s)',
         c, params=[tk]
     )
     c.close()
