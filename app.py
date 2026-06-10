@@ -426,7 +426,7 @@ if current_page == "qlphanquyen":
 
     st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
 
-    _pq_readonly = not is_admin
+    _pq_readonly = not _perm("qlphanquyen", "edit")
     edited = st.data_editor(
         df_pq[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
         column_config={
@@ -442,7 +442,7 @@ if current_page == "qlphanquyen":
         key=f"pq_editor_{selected_tk}",
     )
 
-    if is_admin:
+    if _perm("qlphanquyen", "edit"):
         if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
             try:
                 rows = edited[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
