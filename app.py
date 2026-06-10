@@ -426,29 +426,31 @@ if current_page == "qlphanquyen":
 
     st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
 
+    _pq_readonly = not is_admin
     edited = st.data_editor(
         df_pq[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
         column_config={
             "controller": st.column_config.TextColumn("Controller", disabled=True, width="small"),
             "title": st.column_config.TextColumn("Menu", disabled=True),
-            "access_yn": st.column_config.CheckboxColumn("Truy cập"),
-            "new_yn": st.column_config.CheckboxColumn("Thêm mới"),
-            "edit_yn": st.column_config.CheckboxColumn("Sửa"),
-            "delete_yn": st.column_config.CheckboxColumn("Xóa"),
+            "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_readonly),
+            "new_yn": st.column_config.CheckboxColumn("Thêm mới", disabled=_pq_readonly),
+            "edit_yn": st.column_config.CheckboxColumn("Sửa", disabled=_pq_readonly),
+            "delete_yn": st.column_config.CheckboxColumn("Xóa", disabled=_pq_readonly),
         },
         hide_index=True,
         use_container_width=True,
         key=f"pq_editor_{selected_tk}",
     )
 
-    if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
-        try:
-            rows = edited[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
-            save_phanquyen(selected_tk, rows)
-            st.success("Đã lưu phân quyền!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Lỗi: {e}")
+    if is_admin:
+        if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
+            try:
+                rows = edited[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
+                save_phanquyen(selected_tk, rows)
+                st.success("Đã lưu phân quyền!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Lỗi: {e}")
     st.stop()
 
 # --- Thêm Công Ty page (redirect) ---
