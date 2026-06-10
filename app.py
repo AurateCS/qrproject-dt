@@ -248,7 +248,8 @@ def sidebar_nav():
     with st.sidebar:
         btn_idx = 0
         for section in nav:
-            visible = [i for i in section["items"] if (not i["admin"] or is_admin) and _perm(i["key"])]
+            _public = {"thucdon", "order"}
+            visible = [i for i in section["items"] if (i["key"] in _public or not i["admin"] or is_admin) and _perm(i["key"])]
             if not visible:
                 continue
             st.markdown(
