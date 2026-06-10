@@ -420,9 +420,26 @@ if current_page == "qlphanquyen":
     selected_name = st.selectbox("Chọn tài khoản", list(nv_opts.keys()), key="pq_user_sel")
     selected_tk = nv_opts[selected_name]
 
+    _PQ_ACCESS_ONLY  = {"thucdon", "order", "nhanvien", "congty", "diadiem"}
+    _PQ_ACCESS_EDIT  = {"qlphanquyen"}
+
+    def _apply_perm_rules(df):
+        df = df.copy()
+        for idx, row in df.iterrows():
+            ctrl = row["controller"]
+            if ctrl in _PQ_ACCESS_ONLY:
+                df.at[idx, "new_yn"]    = False
+                df.at[idx, "edit_yn"]   = False
+                df.at[idx, "delete_yn"] = False
+            elif ctrl in _PQ_ACCESS_EDIT:
+                df.at[idx, "new_yn"]    = False
+                df.at[idx, "delete_yn"] = False
+        return df
+
     df_pq = get_phanquyen_grid(selected_tk).copy()
     for col in ["access_yn", "new_yn", "edit_yn", "delete_yn"]:
         df_pq[col] = df_pq[col].astype(bool)
+    df_pq = _apply_perm_rules(df_pq)
 
     st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
 
@@ -445,7 +462,8 @@ if current_page == "qlphanquyen":
     if _perm("qlphanquyen", "edit"):
         if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
             try:
-                rows = edited[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
+                clean = _apply_perm_rules(edited)
+                rows = clean[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
                 save_phanquyen(selected_tk, rows)
                 st.success("Đã lưu phân quyền!")
                 st.rerun()
