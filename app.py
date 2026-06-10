@@ -420,50 +420,76 @@ if current_page == "qlphanquyen":
     selected_name = st.selectbox("Chọn tài khoản", list(nv_opts.keys()), key="pq_user_sel")
     selected_tk = nv_opts[selected_name]
 
-    _PQ_ACCESS_ONLY  = {"thucdon", "order", "nhanvien", "congty", "diadiem"}
-    _PQ_ACCESS_EDIT  = {"qlphanquyen"}
-
-    def _apply_perm_rules(df):
-        df = df.copy()
-        for idx, row in df.iterrows():
-            ctrl = row["controller"]
-            if ctrl in _PQ_ACCESS_ONLY:
-                df.at[idx, "new_yn"]    = False
-                df.at[idx, "edit_yn"]   = False
-                df.at[idx, "delete_yn"] = False
-            elif ctrl in _PQ_ACCESS_EDIT:
-                df.at[idx, "new_yn"]    = False
-                df.at[idx, "delete_yn"] = False
-        return df
+    _PQ_ACCESS_ONLY = {"thucdon", "order", "nhanvien", "congty", "diadiem"}
+    _PQ_ACCESS_EDIT = {"qlphanquyen"}
 
     df_pq = get_phanquyen_grid(selected_tk).copy()
     for col in ["access_yn", "new_yn", "edit_yn", "delete_yn"]:
         df_pq[col] = df_pq[col].astype(bool)
-    df_pq = _apply_perm_rules(df_pq)
+
+    df_access_only = df_pq[df_pq["controller"].isin(_PQ_ACCESS_ONLY)].copy()
+    df_access_edit = df_pq[df_pq["controller"].isin(_PQ_ACCESS_EDIT)].copy()
+    df_full        = df_pq[~df_pq["controller"].isin(_PQ_ACCESS_ONLY | _PQ_ACCESS_EDIT)].copy()
 
     st.caption(f"Cấu hình quyền cho: **{selected_name}** ({selected_tk})")
 
-    _pq_readonly = not _perm("qlphanquyen", "edit")
-    edited = st.data_editor(
-        df_pq[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
-        column_config={
-            "controller": st.column_config.TextColumn("Controller", disabled=True, width="small"),
-            "title": st.column_config.TextColumn("Menu", disabled=True),
-            "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_readonly),
-            "new_yn": st.column_config.CheckboxColumn("Thêm mới", disabled=_pq_readonly),
-            "edit_yn": st.column_config.CheckboxColumn("Sửa", disabled=_pq_readonly),
-            "delete_yn": st.column_config.CheckboxColumn("Xóa", disabled=_pq_readonly),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key=f"pq_editor_{selected_tk}",
-    )
+    _pq_ro = not _perm("qlphanquyen", "edit")
+    _base_cfg = {
+        "controller": st.column_config.TextColumn("Controller", disabled=True, width="small"),
+        "title":      st.column_config.TextColumn("Menu", disabled=True),
+    }
+
+    edited_parts = {}
+
+    if not df_access_only.empty:
+        st.markdown("**Xem**")
+        edited_parts["access_only"] = st.data_editor(
+            df_access_only[["controller", "title", "access_yn"]],
+            column_config={**_base_cfg,
+                "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_ro),
+            },
+            hide_index=True, use_container_width=True, key=f"pq_ao_{selected_tk}",
+        )
+
+    if not df_access_edit.empty:
+        st.markdown("**Quản Lý Quyền**")
+        edited_parts["access_edit"] = st.data_editor(
+            df_access_edit[["controller", "title", "access_yn", "edit_yn"]],
+            column_config={**_base_cfg,
+                "access_yn": st.column_config.CheckboxColumn("Truy cập", disabled=_pq_ro),
+                "edit_yn":   st.column_config.CheckboxColumn("Sửa",      disabled=_pq_ro),
+            },
+            hide_index=True, use_container_width=True, key=f"pq_ae_{selected_tk}",
+        )
+
+    if not df_full.empty:
+        st.markdown("**Quản Lý**")
+        edited_parts["full"] = st.data_editor(
+            df_full[["controller", "title", "access_yn", "new_yn", "edit_yn", "delete_yn"]],
+            column_config={**_base_cfg,
+                "access_yn": st.column_config.CheckboxColumn("Truy cập",  disabled=_pq_ro),
+                "new_yn":    st.column_config.CheckboxColumn("Thêm mới",  disabled=_pq_ro),
+                "edit_yn":   st.column_config.CheckboxColumn("Sửa",       disabled=_pq_ro),
+                "delete_yn": st.column_config.CheckboxColumn("Xóa",       disabled=_pq_ro),
+            },
+            hide_index=True, use_container_width=True, key=f"pq_full_{selected_tk}",
+        )
 
     if _perm("qlphanquyen", "edit"):
         if st.button("💾 Lưu Phân Quyền", type="primary", use_container_width=True):
             try:
-                clean = _apply_perm_rules(edited)
-                rows = clean[["controller", "access_yn", "new_yn", "edit_yn", "delete_yn"]].to_dict("records")
+                import pandas as pd
+                rows = []
+                if "access_only" in edited_parts:
+                    df_ao = edited_parts["access_only"].copy()
+                    df_ao["new_yn"] = False; df_ao["edit_yn"] = False; df_ao["delete_yn"] = False
+                    rows += df_ao[["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
+                if "access_edit" in edited_parts:
+                    df_ae = edited_parts["access_edit"].copy()
+                    df_ae["new_yn"] = False; df_ae["delete_yn"] = False
+                    rows += df_ae[["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
+                if "full" in edited_parts:
+                    rows += edited_parts["full"][["controller","access_yn","new_yn","edit_yn","delete_yn"]].to_dict("records")
                 save_phanquyen(selected_tk, rows)
                 st.success("Đã lưu phân quyền!")
                 st.rerun()
