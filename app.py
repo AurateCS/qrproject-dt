@@ -193,6 +193,8 @@ phanquyen = st.session_state.get("phanquyen", {})
 def _perm(page_key, field="access"):
     if is_admin:
         return True
+    if page_key in ("thucdon", "order") and field == "access":
+        return True
     if not phanquyen:
         return True
     return phanquyen.get(page_key, {}).get(field, False)
