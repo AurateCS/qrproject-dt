@@ -190,12 +190,14 @@ display_name = st.session_state.get("display_name", actor)
 phanquyen = st.session_state.get("phanquyen", {})
 
 
+_REQUIRES_GRANT = {"datmon", "congty", "diadiem", "nhanvien"}
+
 def _perm(page_key, field="access"):
     if is_admin:
         return True
     if page_key in ("thucdon", "order") and field == "access":
         return True
-    if not phanquyen:
+    if not phanquyen and page_key not in _REQUIRES_GRANT:
         return True
     return phanquyen.get(page_key, {}).get(field, False)
 
