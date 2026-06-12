@@ -4,18 +4,33 @@ from datetime import date, timedelta, datetime, time as _time, timezone
 from io import BytesIO
 import time
 import pandas as pd
-from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active,
-                get_vitri_options, get_congty_options, get_monan_options, get_monan_options_for_vitri,
-                get_nhanvien_options,
-                insert_datmon, insert_congty, insert_vitri, insert_nhanvien, insert_monan,
-                update_datmon, update_congty, update_vitri, update_nhanvien, update_monan,
-                update_user_password, toggle_admin, get_sidebar,
-                get_config, set_config, upsert_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
-                get_thucdon_hom_nay, get_vitri_detail,
-                update_thucdon, get_thucdon_available, finish_thucdon_today,
-                get_pending_order, confirm_pending_order, cancel_pending_order,
-                get_phanquyen_grid, save_phanquyen, get_user_perm)
-from auth import create_session, validate_session, delete_session
+import os as _os
+if _os.environ.get("USE_LOCAL"):
+    from db_local import (load, get_conn, load_table, hard_delete, soft_delete, set_active,
+                    get_vitri_options, get_congty_options, get_monan_options, get_monan_options_for_vitri,
+                    get_nhanvien_options,
+                    insert_datmon, insert_congty, insert_vitri, insert_nhanvien, insert_monan,
+                    update_datmon, update_congty, update_vitri, update_nhanvien, update_monan,
+                    update_user_password, toggle_admin, get_sidebar,
+                    get_config, set_config, upsert_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
+                    get_thucdon_hom_nay, get_vitri_detail,
+                    update_thucdon, get_thucdon_available, finish_thucdon_today,
+                    get_pending_order, confirm_pending_order, cancel_pending_order,
+                    get_phanquyen_grid, save_phanquyen, get_user_perm)
+    from auth_local import create_session, validate_session, delete_session
+else:
+    from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active,
+                    get_vitri_options, get_congty_options, get_monan_options, get_monan_options_for_vitri,
+                    get_nhanvien_options,
+                    insert_datmon, insert_congty, insert_vitri, insert_nhanvien, insert_monan,
+                    update_datmon, update_congty, update_vitri, update_nhanvien, update_monan,
+                    update_user_password, toggle_admin, get_sidebar,
+                    get_config, set_config, upsert_config, get_chu_ky_hom_nay, get_thucdon, insert_thucdon, delete_thucdon,
+                    get_thucdon_hom_nay, get_vitri_detail,
+                    update_thucdon, get_thucdon_available, finish_thucdon_today,
+                    get_pending_order, confirm_pending_order, cancel_pending_order,
+                    get_phanquyen_grid, save_phanquyen, get_user_perm)
+    from auth import create_session, validate_session, delete_session
 
 _VN_TZ = timezone(timedelta(hours=7))
 
