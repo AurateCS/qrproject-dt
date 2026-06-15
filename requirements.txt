@@ -7,3 +7,7 @@ openpyxl
 requests
 beautifulsoup4
 qrcode[pil]
+folium
+streamlit-folium
+streamlit-geolocation
+numpy

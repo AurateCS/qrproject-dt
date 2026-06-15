@@ -2,3 +2,8 @@
 base = "light"
 primaryColor = "#EE1C25"
 textColor = "#000000"
+
+[server]
+maxMessageSize = 500
+fileWatcherType = "none"
+headless = true

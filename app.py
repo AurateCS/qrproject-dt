@@ -18,6 +18,7 @@ if _os.environ.get("USE_LOCAL"):
                     get_pending_order, confirm_pending_order, cancel_pending_order,
                     get_phanquyen_grid, save_phanquyen, get_user_perm)
     from auth_local import create_session, validate_session, delete_session
+    _ph = "?"
 else:
     from db import (load, get_conn, load_table, hard_delete, soft_delete, set_active,
                     get_vitri_options, get_congty_options, get_monan_options, get_monan_options_for_vitri,
@@ -31,6 +32,7 @@ else:
                     get_pending_order, confirm_pending_order, cancel_pending_order,
                     get_phanquyen_grid, save_phanquyen, get_user_perm)
     from auth import create_session, validate_session, delete_session
+    _ph = "%s"
 
 _VN_TZ = timezone(timedelta(hours=7))
 
@@ -118,7 +120,7 @@ def check_login(username, password):
     c = get_conn()
     cursor = c.cursor()
     cursor.execute(
-        "SELECT \"TaiKhoan\", \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = %s AND \"MatKhau\" = %s AND \"TrangThai\" = 'active'",
+        f"SELECT \"TaiKhoan\", \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = {_ph} AND \"MatKhau\" = {_ph} AND \"TrangThai\" = 'active'",
         (username, password)
     )
     row = cursor.fetchone()
@@ -130,7 +132,7 @@ def check_login(username, password):
 def get_user_info(username):
     c = get_conn()
     cursor = c.cursor()
-    cursor.execute("SELECT \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = %s", (username,))
+    cursor.execute(f"SELECT \"TenTaiKhoan\", \"Adm\" FROM dangnhap WHERE \"TaiKhoan\" = {_ph}", (username,))
     row = cursor.fetchone()
     c.close()
     return row if row else (username, 0)
@@ -140,13 +142,13 @@ def register_user(username, display_name, password, ma_diadiem):
     from datetime import datetime
     c = get_conn()
     cursor = c.cursor()
-    cursor.execute("SELECT \"TaiKhoan\" FROM dangnhap WHERE \"TaiKhoan\" = %s", (username,))
+    cursor.execute(f"SELECT \"TaiKhoan\" FROM dangnhap WHERE \"TaiKhoan\" = {_ph}", (username,))
     if cursor.fetchone():
         c.close()
         return False, "Tài khoản đã tồn tại."
     now = datetime.now()
     cursor.execute(
-        "INSERT INTO dangnhap (\"TaiKhoan\",\"TenTaiKhoan\",\"Adm\",\"MatKhau\",\"MaDiaDiem\",\"TrangThai\",\"NgayTao\",\"NguoiTao\",\"NgaySua\",\"NguoiSua\") VALUES (%s,%s,0,%s,%s,'active',%s,%s,%s,%s)",
+        f"INSERT INTO dangnhap (\"TaiKhoan\",\"TenTaiKhoan\",\"Adm\",\"MatKhau\",\"MaDiaDiem\",\"TrangThai\",\"NgayTao\",\"NguoiTao\",\"NgaySua\",\"NguoiSua\") VALUES ({_ph},{_ph},0,{_ph},{_ph},'active',{_ph},{_ph},{_ph},{_ph})",
         (username, display_name, password, ma_diadiem, now, username, now, username)
     )
     c.commit()
@@ -718,7 +720,9 @@ if current_page == "order":
         st.error("Địa điểm không hợp lệ.")
         st.stop()
 
-    ten_vitri, ma_congty, *_ = vitri_info
+    ten_vitri, ma_congty, *_rest = vitri_info
+    vitri_lat = float(_rest[3]) if len(_rest) > 3 and _rest[3] is not None else None
+    vitri_lng = float(_rest[4]) if len(_rest) > 4 and _rest[4] is not None else None
 
     # Success screen shown after QR confirm + rerun
     if st.session_state.get("order_success"):
@@ -743,6 +747,15 @@ if current_page == "order":
     if col_back.button("↩ Quay lại", use_container_width=True):
         del st.query_params["vitri"]
         st.rerun()
+
+    if vitri_lat and vitri_lng:
+        with st.expander("📍 Xem vị trí căng tin", expanded=False):
+            import folium
+            from streamlit_folium import st_folium
+            _vm = folium.Map(location=[vitri_lat, vitri_lng], zoom_start=16)
+            folium.Marker([vitri_lat, vitri_lng], tooltip=ten_vitri,
+                          icon=folium.Icon(color="red", icon="cutlery", prefix="fa")).add_to(_vm)
+            st_folium(_vm, height=220, use_container_width=True, returned_objects=[], key="order_vitri_map")
 
     chu_ky = get_chu_ky_hom_nay()
     df_avail = get_thucdon_available(ma_vitri, chu_ky)
@@ -854,15 +867,22 @@ if current_page == "order":
             )
 
     st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
+
     ma_monan_sel = st.session_state.get(sel_key)
     if ma_monan_sel:
         sel_row = df_avail[df_avail["MaMonAn"] == ma_monan_sel].iloc[0]
         don_gia_sel = int(sel_row["DonGia"])
         st.markdown(f"**Đã chọn:** {sel_row['TenMonAn']} — {don_gia_sel:,} ₫".replace(",", "."))
+        from streamlit_geolocation import streamlit_geolocation
+        _loc = streamlit_geolocation()
+        _user_lat = float(_loc["latitude"])  if (_loc and _loc.get("latitude"))  else None
+        _user_lng = float(_loc["longitude"]) if (_loc and _loc.get("longitude")) else None
+        if _user_lat and _user_lng:
+            st.caption(f"📍 Vị trí của bạn: {_user_lat:.5f}, {_user_lng:.5f}")
         if st.button("✅ Đặt Món", use_container_width=True, type="primary"):
             try:
                 cancel_pending_order(actor)
-                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan_sel, actor, 1, don_gia_sel, actor, '', trang_thai='pending')
+                insert_datmon(date.today(), ma_vitri, ma_congty, ma_monan_sel, actor, 1, don_gia_sel, actor, '', trang_thai='pending', user_lat=_user_lat, user_lng=_user_lng)
                 st.session_state[sel_key] = None
                 st.rerun()
             except Exception as e:
@@ -939,12 +959,13 @@ if current_page == "qldatmon":
     _c = get_conn()
     raw_dm = pd.read_sql(
         f'SELECT d."Id",d."Ngay",d."MaDiaDiem",v."TenViTri",d."MaMonAn",m."TenMonAn",'
-        f'd."MaNhanVien",dn."TenTaiKhoan",d."BuaAn",d."SoLuong",d."DonGia",d."ThanhTien",d."TrangThai" '
+        f'd."MaNhanVien",dn."TenTaiKhoan",d."BuaAn",d."SoLuong",d."DonGia",d."ThanhTien",d."TrangThai",'
+        f'd."UserLat",d."UserLng",v."Lat" AS "VitriLat",v."Lng" AS "VitriLng" '
         f'FROM datmon d '
         f'LEFT JOIN vitri v ON d."MaDiaDiem"=v."MaViTri" '
         f'LEFT JOIN monan m ON d."MaMonAn"=m."MaMonAn" '
         f'LEFT JOIN dangnhap dn ON d."MaNhanVien"=dn."TaiKhoan" '
-        f'WHERE d."Ngay" BETWEEN %s AND %s {status_filter} '
+        f'WHERE d."Ngay" BETWEEN {_ph} AND {_ph} {status_filter} '
         f'ORDER BY d."Ngay" DESC,d."NgayTao" DESC',
         _c, params=[str(from_d), str(to_d)]
     )
@@ -979,7 +1000,52 @@ if current_page == "qldatmon":
         monan_opts_dm, prices_dm = get_monan_options()
         nv_opts_dm      = get_nhanvien_options()
 
-        tab_edit, tab_status, tab_del = st.tabs(["✏️ Sửa", "🔄 Trạng thái", "🗑️ Xóa"])
+        tab_edit, tab_map, tab_status, tab_del = st.tabs(["✏️ Sửa", "📍 Bản Đồ", "🔄 Trạng thái", "🗑️ Xóa"])
+
+        with tab_map:
+            import folium as _folium
+            from streamlit_folium import st_folium as _st_folium
+            import math
+
+            _ulat = float(r["UserLat"])  if pd.notna(r.get("UserLat"))  and r["UserLat"]  else None
+            _ulng = float(r["UserLng"])  if pd.notna(r.get("UserLng"))  and r["UserLng"]  else None
+            _vlat = float(r["VitriLat"]) if pd.notna(r.get("VitriLat")) and r["VitriLat"] else None
+            _vlng = float(r["VitriLng"]) if pd.notna(r.get("VitriLng")) and r["VitriLng"] else None
+
+            if not _vlat and not _ulat:
+                st.info("Đơn hàng này không có dữ liệu vị trí.")
+            else:
+                _points = [p for p in [(_vlat, _vlng), (_ulat, _ulng)] if p[0]]
+                _center = [sum(p[0] for p in _points) / len(_points),
+                           sum(p[1] for p in _points) / len(_points)]
+                _mm = _folium.Map(location=_center, zoom_start=15, tiles="CartoDB Positron")
+
+                if _vlat and _vlng:
+                    _folium.Marker(
+                        [_vlat, _vlng],
+                        tooltip=f"🍽️ Căng tin: {r['TenViTri']}",
+                        icon=_folium.Icon(color="red", icon="cutlery", prefix="fa"),
+                    ).add_to(_mm)
+
+                if _ulat and _ulng:
+                    _folium.Marker(
+                        [_ulat, _ulng],
+                        tooltip=f"👤 {r['TenTaiKhoan']}",
+                        icon=_folium.Icon(color="blue", icon="user", prefix="fa"),
+                    ).add_to(_mm)
+
+                if _vlat and _vlng and _ulat and _ulng:
+                    _folium.PolyLine([[_vlat, _vlng], [_ulat, _ulng]],
+                                     color="gray", weight=2, dash_array="5").add_to(_mm)
+                    _phi1, _phi2 = math.radians(_vlat), math.radians(_ulat)
+                    _a = math.sin(math.radians(_ulat - _vlat) / 2) ** 2 + \
+                         math.cos(_phi1) * math.cos(_phi2) * \
+                         math.sin(math.radians(_ulng - _vlng) / 2) ** 2
+                    _dist = 6371000 * 2 * math.asin(math.sqrt(_a))
+                    st.caption(f"📏 Khoảng cách: **{_dist:.0f} m**")
+
+                _st_folium(_mm, height=380, use_container_width=True,
+                           returned_objects=[], key=f"dm_map_{r['Id']}")
 
         with tab_edit:
             if not _perm("qldatmon", "edit"):
@@ -1113,7 +1179,7 @@ if current_page == "qlthucdon":
     chu_ky_sel = col2.selectbox("Ngày Chu Kỳ", day_labels, index=today_cycle - 1, key="td_ck_sel")
     ma_vitri    = vitri_opts[vitri_sel]
     chu_ky_ngay = day_labels.index(chu_ky_sel) + 1
-    monan_opts, _ = get_monan_options_for_vitri(ma_vitri)
+    monan_opts, _ = get_monan_options()
 
     show_all_td = st.toggle("Hiện tất cả (kể cả inactive)", key="show_all_qlthucdon")
     df_slot = get_thucdon(ma_vitri, chu_ky_ngay, show_all=show_all_td)
@@ -1405,9 +1471,36 @@ if current_page == "qlvitri":
             if not _perm("qlvitri", "edit"):
                 st.warning("Bạn không có quyền sửa.")
             else:
+                import folium as _folium
+                from streamlit_folium import st_folium as _st_folium
+
                 congty_opts_ql = get_congty_options()
                 ck = list(congty_opts_ql.keys())
                 cc = next((k for k, v in congty_opts_ql.items() if v == r["MaCongTy"]), ck[0])
+
+                _lat_key = f"vt_lat_{r['MaViTri']}"
+                _lng_key = f"vt_lng_{r['MaViTri']}"
+                _init_lat = float(r["Lat"]) if pd.notna(r.get("Lat", None)) and r["Lat"] else 10.8231
+                _init_lng = float(r["Lng"]) if pd.notna(r.get("Lng", None)) and r["Lng"] else 106.6297
+                if _lat_key not in st.session_state:
+                    st.session_state[_lat_key] = _init_lat
+                if _lng_key not in st.session_state:
+                    st.session_state[_lng_key] = _init_lng
+
+                st.markdown("**📍 Vị trí căng tin** — click trên bản đồ để cập nhật")
+                _em = _folium.Map(location=[st.session_state[_lat_key], st.session_state[_lng_key]],
+                                  zoom_start=15, tiles="CartoDB Positron")
+                _folium.Marker(
+                    [st.session_state[_lat_key], st.session_state[_lng_key]],
+                    tooltip=r["TenViTri"],
+                    icon=_folium.Icon(color="red", icon="cutlery", prefix="fa"),
+                ).add_to(_em)
+                _emap = _st_folium(_em, height=300, use_container_width=True,
+                                   returned_objects=["last_clicked"], key=f"map_edit_{r['MaViTri']}")
+                if _emap and _emap.get("last_clicked"):
+                    st.session_state[_lat_key] = _emap["last_clicked"]["lat"]
+                    st.session_state[_lng_key] = _emap["last_clicked"]["lng"]
+
                 with st.form("ql_edit_vitri"):
                     e1, e2 = st.columns(2)
                     ten_e    = e1.text_input("Tên Địa Điểm", value=str(r["TenViTri"]))
@@ -1417,9 +1510,13 @@ if current_page == "qlvitri":
                     sang_e  = b1.checkbox("Sáng",  value=bool(r["BuaSang"]))
                     trua_e  = b2.checkbox("Trưa",  value=bool(r["BuaTrua"]))
                     chieu_e = b3.checkbox("Chiều", value=bool(r["BuaChieu"]))
+                    l1, l2 = st.columns(2)
+                    lat_e = l1.number_input("Vĩ độ (Lat)", value=st.session_state[_lat_key], format="%.6f", step=0.000001)
+                    lng_e = l2.number_input("Kinh độ (Lng)", value=st.session_state[_lng_key], format="%.6f", step=0.000001)
                     if st.form_submit_button("Lưu", use_container_width=True):
                         try:
-                            update_vitri(r["MaViTri"], ten_e, congty_opts_ql[congty_e], sang_e, trua_e, chieu_e, actor)
+                            update_vitri(r["MaViTri"], ten_e, congty_opts_ql[congty_e], sang_e, trua_e, chieu_e, lat_e or None, lng_e or None, actor)
+                            get_vitri_detail.clear()
                             st.success("Đã cập nhật!")
                             st.rerun()
                         except Exception as e:
@@ -1466,17 +1563,44 @@ if current_page == "qlvitri":
         if not _perm("qlvitri", "new"):
             st.warning("Bạn không có quyền thêm mới.")
         else:
+            import folium as _folium
+            from streamlit_folium import st_folium as _st_folium
+
             congty_opts_tv = get_congty_options()
+
+            if "add_vt_lat" not in st.session_state:
+                st.session_state["add_vt_lat"] = 10.8231
+            if "add_vt_lng" not in st.session_state:
+                st.session_state["add_vt_lng"] = 106.6297
+
+            st.markdown("**📍 Chọn vị trí căng tin trên bản đồ**")
+            _am = _folium.Map(location=[st.session_state["add_vt_lat"], st.session_state["add_vt_lng"]],
+                              zoom_start=13, tiles="CartoDB Positron")
+            _folium.Marker(
+                [st.session_state["add_vt_lat"], st.session_state["add_vt_lng"]],
+                icon=_folium.Icon(color="green", icon="plus"),
+            ).add_to(_am)
+            _amap = _st_folium(_am, height=300, use_container_width=True,
+                               returned_objects=["last_clicked"], key="map_add_vitri")
+            if _amap and _amap.get("last_clicked"):
+                st.session_state["add_vt_lat"] = _amap["last_clicked"]["lat"]
+                st.session_state["add_vt_lng"] = _amap["last_clicked"]["lng"]
+
             with st.form("them_vitri"):
                 ma         = st.text_input("Mã Địa Điểm")
                 ten        = st.text_input("Tên Địa Điểm")
                 congty_sel = st.selectbox("Công Ty", list(congty_opts_tv.keys()))
+                l1, l2 = st.columns(2)
+                lat_n = l1.number_input("Vĩ độ (Lat)", value=st.session_state["add_vt_lat"], format="%.6f", step=0.000001)
+                lng_n = l2.number_input("Kinh độ (Lng)", value=st.session_state["add_vt_lng"], format="%.6f", step=0.000001)
                 if st.form_submit_button("Thêm", use_container_width=True):
                     if ma and ten:
                         try:
-                            insert_vitri(ma, ten, congty_opts_tv[congty_sel], "active", actor)
+                            insert_vitri(ma, ten, congty_opts_tv[congty_sel], "active", actor, lat_n or None, lng_n or None)
                             st.success("Đã thêm!")
                             st.session_state["_show_add_vt"] = False
+                            st.session_state.pop("add_vt_lat", None)
+                            st.session_state.pop("add_vt_lng", None)
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
                     else:
@@ -1559,7 +1683,8 @@ proc_map = {
     "nhanvien": "bc_nhanvien",
 }
 
-df = load(proc_map[selected_key], from_date, to_date, show_all=show_all)
+with st.spinner("Đang tải dữ liệu..."):
+    df = load(proc_map[selected_key], from_date, to_date, show_all=show_all)
 
 def _cw(col, series):
     mx = series.astype(str).str.len().max()
@@ -1569,7 +1694,13 @@ col_cfg = {col: st.column_config.Column(width=_cw(col, df[col])) for col in df.c
 st.dataframe(df, use_container_width=True, hide_index=True, column_config=col_cfg)
 
 buf = BytesIO()
-df.to_excel(buf, index=False)
+EXCEL_LIMIT = 1_048_576
+with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+    if df.empty:
+        df.to_excel(writer, sheet_name="Sheet1", index=False)
+    else:
+        for i, start in enumerate(range(0, len(df), EXCEL_LIMIT)):
+            df.iloc[start:start + EXCEL_LIMIT].to_excel(writer, sheet_name=f"Sheet{i + 1}", index=False)
 st.download_button("⬇️ Xuất Excel", buf.getvalue(),
                    file_name=f"{selected_key}_{from_date}_{to_date}.xlsx",
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

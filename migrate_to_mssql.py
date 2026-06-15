@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, types as sa_types
 
 NEON_URL = (
     "postgresql://neondb_owner:npg_TXFWz1b2PYcR"
@@ -43,7 +43,8 @@ for table in tables:
     print(f"  Migrating [{table}]... ", end="", flush=True)
     try:
         df = pd.read_sql(f'SELECT * FROM "{table}"', pg_engine)
-        df.to_sql(table, ms_engine, if_exists="replace", index=False)
+        nvarchar_cols = {col: sa_types.NVARCHAR(length=None) for col in df.select_dtypes(include="object").columns}
+        df.to_sql(table, ms_engine, if_exists="replace", index=False, dtype=nvarchar_cols)
         print(f"OK  ({len(df)} rows)")
         success.append(table)
     except Exception as e:

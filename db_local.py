@@ -258,13 +258,13 @@ def update_congty(ma_congty, ten_congty, dia_chi, actor):
     c.close()
 
 
-def update_vitri(ma_vitri, ten_vitri, ma_congty, bua_sang, bua_trua, bua_chieu, actor):
+def update_vitri(ma_vitri, ten_vitri, ma_congty, bua_sang, bua_trua, bua_chieu, lat, lng, actor):
     c = get_conn()
     cur = c.cursor()
     cur.execute(
         'UPDATE vitri SET "TenViTri"=?,"MaCongTy"=?,"BuaSang"=?,"BuaTrua"=?,"BuaChieu"=?,'
-        '"NgaySua"=?,"NguoiSua"=? WHERE "MaViTri"=?',
-        (ten_vitri, ma_congty, bua_sang, bua_trua, bua_chieu, _now(), actor, ma_vitri)
+        '"Lat"=?,"Lng"=?,"NgaySua"=?,"NguoiSua"=? WHERE "MaViTri"=?',
+        (ten_vitri, ma_congty, bua_sang, bua_trua, bua_chieu, lat, lng, _now(), actor, ma_vitri)
     )
     c.commit()
     c.close()
@@ -286,7 +286,7 @@ def get_vitri_detail(ma_vitri):
     c = get_conn()
     cur = c.cursor()
     cur.execute(
-        'SELECT "TenViTri","MaCongTy","BuaSang","BuaTrua","BuaChieu" FROM vitri WHERE "MaViTri"=?',
+        'SELECT "TenViTri","MaCongTy","BuaSang","BuaTrua","BuaChieu","Lat","Lng" FROM vitri WHERE "MaViTri"=?',
         (ma_vitri,)
     )
     row = cur.fetchone()
@@ -306,16 +306,16 @@ def check_duplicate_order(ma_nhanvien, ngay, bua_an, ma_diadiem):
     return count > 0
 
 
-def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an='', trang_thai='active'):
+def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an='', trang_thai='active', user_lat=None, user_lng=None):
     thanh_tien = so_luong * don_gia
     now = _now()
     id_val = f"ORD-{ngay.strftime('%Y%m%d')}-{now.strftime('%H%M%S%f')}"
     c = get_conn()
     cur = c.cursor()
     cur.execute(
-        'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") '
-        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, trang_thai, now, actor, now, actor)
+        'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","UserLat","UserLng","NgayTao","NguoiTao","NgaySua","NguoiSua") '
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, trang_thai, user_lat, user_lng, now, actor, now, actor)
     )
     c.commit()
     c.close()
@@ -387,13 +387,13 @@ def insert_congty(ma_congty, ten_congty, dia_chi, trang_thai, actor):
     c.close()
 
 
-def insert_vitri(ma_vitri, ten_vitri, ma_congty, trang_thai, actor):
+def insert_vitri(ma_vitri, ten_vitri, ma_congty, trang_thai, actor, lat=None, lng=None):
     now = _now()
     c = get_conn()
     cur = c.cursor()
     cur.execute(
-        'INSERT INTO vitri ("MaViTri","TenViTri","MaCongTy","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") VALUES (?,?,?,?,?,?,?,?)',
-        (ma_vitri, ten_vitri, ma_congty, trang_thai, now, actor, now, actor)
+        'INSERT INTO vitri ("MaViTri","TenViTri","MaCongTy","Lat","Lng","TrangThai","NgayTao","NguoiTao","NgaySua","NguoiSua") VALUES (?,?,?,?,?,?,?,?,?,?)',
+        (ma_vitri, ten_vitri, ma_congty, lat, lng, trang_thai, now, actor, now, actor)
     )
     c.commit()
     c.close()
