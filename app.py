@@ -880,7 +880,7 @@ if current_page == "order":
         don_gia_sel = int(sel_row["DonGia"])
         st.markdown(f"**Đã chọn:** {sel_row['TenMonAn']} — {don_gia_sel:,} ₫".replace(",", "."))
         from streamlit_js_eval import get_geolocation
-        _loc = get_geolocation(key="order_geo")
+        _loc = get_geolocation(component_key="order_geo")
         _coords = _loc.get("coords") if _loc else None
         _user_lat = float(_coords["latitude"])  if (_coords and _coords.get("latitude"))  else None
         _user_lng = float(_coords["longitude"]) if (_coords and _coords.get("longitude")) else None
