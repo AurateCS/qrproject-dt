@@ -750,12 +750,18 @@ if current_page == "order":
 
     if vitri_lat and vitri_lng:
         with st.expander("📍 Xem vị trí căng tin", expanded=False):
-            import folium
-            from streamlit_folium import st_folium
-            _vm = folium.Map(location=[vitri_lat, vitri_lng], zoom_start=16)
-            folium.Marker([vitri_lat, vitri_lng], tooltip=ten_vitri,
-                          icon=folium.Icon(color="red", icon="cutlery", prefix="fa")).add_to(_vm)
-            st_folium(_vm, height=220, use_container_width=True, returned_objects=[], key="order_vitri_map")
+            import streamlit.components.v1 as _c
+            _GKEY = "AIzaSyD7pEMdwDISZbYJRHKbhaRayLq6Z6ZLLCs"
+            _c.html(f"""
+            <div id="vm" style="height:220px;width:100%;border-radius:8px"></div>
+            <script>
+            function initVM(){{
+                var map=new google.maps.Map(document.getElementById('vm'),{{center:{{lat:{vitri_lat},lng:{vitri_lng}}},zoom:16,mapTypeControl:false,streetViewControl:false}});
+                new google.maps.Marker({{position:{{lat:{vitri_lat},lng:{vitri_lng}}},map:map,title:{ten_vitri!r}}});
+            }}
+            </script>
+            <script async src="https://maps.googleapis.com/maps/api/js?key={_GKEY}&callback=initVM"></script>
+            """, height=230)
 
     chu_ky = get_chu_ky_hom_nay()
     df_avail = get_thucdon_available(ma_vitri, chu_ky)
@@ -873,10 +879,11 @@ if current_page == "order":
         sel_row = df_avail[df_avail["MaMonAn"] == ma_monan_sel].iloc[0]
         don_gia_sel = int(sel_row["DonGia"])
         st.markdown(f"**Đã chọn:** {sel_row['TenMonAn']} — {don_gia_sel:,} ₫".replace(",", "."))
-        from streamlit_geolocation import streamlit_geolocation
-        _loc = streamlit_geolocation()
-        _user_lat = float(_loc["latitude"])  if (_loc and _loc.get("latitude"))  else None
-        _user_lng = float(_loc["longitude"]) if (_loc and _loc.get("longitude")) else None
+        from streamlit_js_eval import get_geolocation
+        _loc = get_geolocation(key="order_geo")
+        _coords = _loc.get("coords") if _loc else None
+        _user_lat = float(_coords["latitude"])  if (_coords and _coords.get("latitude"))  else None
+        _user_lng = float(_coords["longitude"]) if (_coords and _coords.get("longitude")) else None
         if _user_lat and _user_lng:
             st.caption(f"📍 Vị trí của bạn: {_user_lat:.5f}, {_user_lng:.5f}")
         if st.button("✅ Đặt Món", use_container_width=True, type="primary"):
@@ -1003,9 +1010,8 @@ if current_page == "qldatmon":
         tab_edit, tab_map, tab_status, tab_del = st.tabs(["✏️ Sửa", "📍 Bản Đồ", "🔄 Trạng thái", "🗑️ Xóa"])
 
         with tab_map:
-            import folium as _folium
-            from streamlit_folium import st_folium as _st_folium
             import math
+            import streamlit.components.v1 as _c
 
             _ulat = float(r["UserLat"])  if pd.notna(r.get("UserLat"))  and r["UserLat"]  else None
             _ulng = float(r["UserLng"])  if pd.notna(r.get("UserLng"))  and r["UserLng"]  else None
@@ -1016,36 +1022,38 @@ if current_page == "qldatmon":
                 st.info("Đơn hàng này không có dữ liệu vị trí.")
             else:
                 _points = [p for p in [(_vlat, _vlng), (_ulat, _ulng)] if p[0]]
-                _center = [sum(p[0] for p in _points) / len(_points),
-                           sum(p[1] for p in _points) / len(_points)]
-                _mm = _folium.Map(location=_center, zoom_start=15, tiles="CartoDB Positron")
+                _clat = sum(p[0] for p in _points) / len(_points)
+                _clng = sum(p[1] for p in _points) / len(_points)
 
-                if _vlat and _vlng:
-                    _folium.Marker(
-                        [_vlat, _vlng],
-                        tooltip=f"🍽️ Căng tin: {r['TenViTri']}",
-                        icon=_folium.Icon(color="red", icon="cutlery", prefix="fa"),
-                    ).add_to(_mm)
-
-                if _ulat and _ulng:
-                    _folium.Marker(
-                        [_ulat, _ulng],
-                        tooltip=f"👤 {r['TenTaiKhoan']}",
-                        icon=_folium.Icon(color="blue", icon="user", prefix="fa"),
-                    ).add_to(_mm)
-
+                _dist_caption = ""
                 if _vlat and _vlng and _ulat and _ulng:
-                    _folium.PolyLine([[_vlat, _vlng], [_ulat, _ulng]],
-                                     color="gray", weight=2, dash_array="5").add_to(_mm)
                     _phi1, _phi2 = math.radians(_vlat), math.radians(_ulat)
                     _a = math.sin(math.radians(_ulat - _vlat) / 2) ** 2 + \
                          math.cos(_phi1) * math.cos(_phi2) * \
                          math.sin(math.radians(_ulng - _vlng) / 2) ** 2
                     _dist = 6371000 * 2 * math.asin(math.sqrt(_a))
-                    st.caption(f"📏 Khoảng cách: **{_dist:.0f} m**")
+                    _dist_caption = f"📏 Khoảng cách: **{_dist:.0f} m**"
 
-                _st_folium(_mm, height=380, use_container_width=True,
-                           returned_objects=[], key=f"dm_map_{r['Id']}")
+                _GKEY = "AIzaSyD7pEMdwDISZbYJRHKbhaRayLq6Z6ZLLCs"
+                _vitri_js  = f"new google.maps.Marker({{position:{{lat:{_vlat},lng:{_vlng}}},map:map,title:{r['TenViTri']!r},icon:'https://maps.google.com/mapfiles/ms/icons/red-dot.png'}});" if _vlat and _vlng else ""
+                _user_js   = f"new google.maps.Marker({{position:{{lat:{_ulat},lng:{_ulng}}},map:map,title:{r['TenTaiKhoan']!r},icon:'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'}});" if _ulat and _ulng else ""
+                _line_js   = f"new google.maps.Polyline({{path:[{{lat:{_vlat},lng:{_vlng}}},{{lat:{_ulat},lng:{_ulng}}}],map:map,strokeColor:'#888',strokeWeight:2,strokeOpacity:0.6}});" if _vlat and _vlng and _ulat and _ulng else ""
+
+                _c.html(f"""
+                <div id="dm" style="height:380px;width:100%;border-radius:8px"></div>
+                <script>
+                function initDM(){{
+                    var map=new google.maps.Map(document.getElementById('dm'),{{center:{{lat:{_clat},lng:{_clng}}},zoom:15,mapTypeControl:false,streetViewControl:false}});
+                    {_vitri_js}
+                    {_user_js}
+                    {_line_js}
+                }}
+                </script>
+                <script async src="https://maps.googleapis.com/maps/api/js?key={_GKEY}&callback=initDM"></script>
+                """, height=390)
+
+                if _dist_caption:
+                    st.caption(_dist_caption)
 
         with tab_edit:
             if not _perm("qldatmon", "edit"):
