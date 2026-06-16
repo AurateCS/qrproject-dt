@@ -9,5 +9,5 @@ beautifulsoup4
 qrcode[pil]
 folium
 streamlit-folium
-streamlit-geolocation
+streamlit-js-eval
 numpy
