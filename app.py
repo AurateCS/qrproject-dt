@@ -750,20 +750,12 @@ if current_page == "order":
 
     if vitri_lat and vitri_lng:
         with st.expander("📍 Xem vị trí căng tin", expanded=False):
-            import streamlit.components.v1 as _c
-            _GKEY = "AIzaSyD7pEMdwDISZbYJRHKbhaRayLq6Z6ZLLCs"
-            _c.html(f"""
-            <div id="vm" style="height:220px;width:100%;border-radius:8px"></div>
-            <script>
-            (async()=>{{
-                const {{Map}}=await google.maps.importLibrary("maps");
-                const {{AdvancedMarkerElement}}=await google.maps.importLibrary("marker");
-                const map=new Map(document.getElementById('vm'),{{center:{{lat:{vitri_lat},lng:{vitri_lng}}},zoom:16,mapTypeControl:false,streetViewControl:false,mapId:"vitri_map"}});
-                new AdvancedMarkerElement({{position:{{lat:{vitri_lat},lng:{vitri_lng}}},map,title:{ten_vitri!r}}});
-            }})();
-            </script>
-            <script async src="https://maps.googleapis.com/maps/api/js?key={_GKEY}&loading=async"></script>
-            """, height=230)
+            import folium
+            from streamlit_folium import st_folium
+            _vm = folium.Map(location=[vitri_lat, vitri_lng], zoom_start=16, tiles="CartoDB Positron")
+            folium.Marker([vitri_lat, vitri_lng], tooltip=ten_vitri,
+                          icon=folium.Icon(color="red", icon="cutlery", prefix="fa")).add_to(_vm)
+            st_folium(_vm, height=220, use_container_width=True, returned_objects=[], key="order_vitri_map")
 
     chu_ky = get_chu_ky_hom_nay()
     df_avail = get_thucdon_available(ma_vitri, chu_ky)
@@ -1036,25 +1028,20 @@ if current_page == "qldatmon":
                     _dist = 6371000 * 2 * math.asin(math.sqrt(_a))
                     _dist_caption = f"📏 Khoảng cách: **{_dist:.0f} m**"
 
-                _GKEY = "AIzaSyD7pEMdwDISZbYJRHKbhaRayLq6Z6ZLLCs"
-                _vitri_js = f"""new AdvancedMarkerElement({{position:{{lat:{_vlat},lng:{_vlng}}},map,title:{r['TenViTri']!r}}});""" if _vlat and _vlng else ""
-                _user_js  = f"""new AdvancedMarkerElement({{position:{{lat:{_ulat},lng:{_ulng}}},map,title:{r['TenTaiKhoan']!r}}});""" if _ulat and _ulng else ""
-                _line_js  = f"""new google.maps.Polyline({{path:[{{lat:{_vlat},lng:{_vlng}}},{{lat:{_ulat},lng:{_ulng}}}],map,strokeColor:'#888',strokeWeight:2,strokeOpacity:0.6}});""" if _vlat and _vlng and _ulat and _ulng else ""
-
-                _c.html(f"""
-                <div id="dm" style="height:380px;width:100%;border-radius:8px"></div>
-                <script>
-                (async()=>{{
-                    const {{Map}}=await google.maps.importLibrary("maps");
-                    const {{AdvancedMarkerElement}}=await google.maps.importLibrary("marker");
-                    const map=new Map(document.getElementById('dm'),{{center:{{lat:{_clat},lng:{_clng}}},zoom:15,mapTypeControl:false,streetViewControl:false,mapId:"dm_map"}});
-                    {_vitri_js}
-                    {_user_js}
-                    {_line_js}
-                }})();
-                </script>
-                <script async src="https://maps.googleapis.com/maps/api/js?key={_GKEY}&loading=async"></script>
-                """, height=390)
+                import folium as _folium
+                from streamlit_folium import st_folium as _st_folium
+                _mm = _folium.Map(location=[_clat, _clng], zoom_start=15, tiles="CartoDB Positron")
+                if _vlat and _vlng:
+                    _folium.Marker([_vlat, _vlng], tooltip=f"🍽️ Căng tin: {r['TenViTri']}",
+                                   icon=_folium.Icon(color="red", icon="cutlery", prefix="fa")).add_to(_mm)
+                if _ulat and _ulng:
+                    _folium.Marker([_ulat, _ulng], tooltip=f"👤 {r['TenTaiKhoan']}",
+                                   icon=_folium.Icon(color="blue", icon="user", prefix="fa")).add_to(_mm)
+                if _vlat and _vlng and _ulat and _ulng:
+                    _folium.PolyLine([[_vlat, _vlng], [_ulat, _ulng]],
+                                     color="gray", weight=2, dash_array="5").add_to(_mm)
+                _st_folium(_mm, height=380, use_container_width=True,
+                           returned_objects=[], key=f"dm_map_{r['Id']}")
 
                 if _dist_caption:
                     st.caption(_dist_caption)
