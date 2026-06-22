@@ -1,6 +1,7 @@
 import pyodbc
 import pandas as pd
 import streamlit as st
+import math
 from datetime import datetime, date as _date
 
 def _now():
@@ -26,6 +27,17 @@ def _conn_str():
 
 def get_conn():
     return pyodbc.connect(_conn_str())
+
+
+def _distance_meters(user_lat, user_lng, target_lat, target_lng):
+    if None in (user_lat, user_lng, target_lat, target_lng):
+        return None
+    phi1 = math.radians(float(user_lat))
+    phi2 = math.radians(float(target_lat))
+    d_phi = math.radians(float(target_lat) - float(user_lat))
+    d_lam = math.radians(float(target_lng) - float(user_lng))
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2
+    return round(6371000 * 2 * math.asin(math.sqrt(a)), 2)
 
 
 @st.cache_resource
@@ -343,6 +355,11 @@ def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, 
     id_val = f"ORD-{ngay.strftime('%Y%m%d')}-{now.strftime('%H%M%S%f')}"
     c = get_conn()
     cur = c.cursor()
+    if khoang_cach is None and user_lat is not None and user_lng is not None:
+        cur.execute('SELECT "Lat","Lng" FROM vitri WHERE "MaViTri"=?', (ma_diadiem,))
+        coords = cur.fetchone()
+        if coords:
+            khoang_cach = _distance_meters(user_lat, user_lng, coords[0], coords[1])
     cur.execute(
         'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","UserLat","UserLng","KhoangCach","NgayTao","NguoiTao","NgaySua","NguoiSua") '
         'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
