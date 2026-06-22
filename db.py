@@ -25,6 +25,22 @@ def get_conn():
     return _get_engine().raw_connection()
 
 
+@st.cache_resource
+def _ensure_datmon_distance_column():
+    c = get_conn()
+    cur = c.cursor()
+    cur.execute('ALTER TABLE vitri ADD COLUMN IF NOT EXISTS "Lat" DOUBLE PRECISION')
+    cur.execute('ALTER TABLE vitri ADD COLUMN IF NOT EXISTS "Lng" DOUBLE PRECISION')
+    cur.execute('ALTER TABLE datmon ADD COLUMN IF NOT EXISTS "UserLat" DOUBLE PRECISION')
+    cur.execute('ALTER TABLE datmon ADD COLUMN IF NOT EXISTS "UserLng" DOUBLE PRECISION')
+    cur.execute('ALTER TABLE datmon ADD COLUMN IF NOT EXISTS "KhoangCach" NUMERIC(15,2)')
+    c.commit()
+    c.close()
+
+
+_ensure_datmon_distance_column()
+
+
 column_labels = {
     "Id": "ID",
     "Ngay": "Ngày",
@@ -55,7 +71,7 @@ _REPORT_QUERIES = {
         SELECT d."Ngay", d."MaDiaDiem", v."TenViTri" AS "TenDiaDiem",
                d."MaMonAn", m."TenMonAn", d."MaNhanVien",
                dn."TenTaiKhoan" AS "TenNhanVien",
-               d."SoLuong", d."DonGia", d."ThanhTien",
+               d."SoLuong", d."DonGia", d."ThanhTien", d."KhoangCach",
                d."MaCongTy", c."TenCongTy" {trangThai}
         FROM datmon d
         LEFT JOIN vitri v ON d."MaDiaDiem" = v."MaViTri"
@@ -316,16 +332,16 @@ def check_duplicate_order(ma_nhanvien, ngay, bua_an, ma_diadiem):
     return count > 0
 
 
-def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an='', trang_thai='active', user_lat=None, user_lng=None):
+def insert_datmon(ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, actor, bua_an='', trang_thai='active', user_lat=None, user_lng=None, khoang_cach=None):
     thanh_tien = so_luong * don_gia
     now = _now()
     id_val = f"ORD-{ngay.strftime('%Y%m%d')}-{now.strftime('%H%M%S%f')}"
     c = get_conn()
     cur = c.cursor()
     cur.execute(
-        'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","UserLat","UserLng","NgayTao","NguoiTao","NgaySua","NguoiSua") '
-        'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, trang_thai, user_lat, user_lng, now, actor, now, actor)
+        'INSERT INTO datmon ("Id","Ngay","MaDiaDiem","MaCongTy","MaMonAn","MaNhanVien","SoLuong","DonGia","ThanhTien","BuaAn","TrangThai","UserLat","UserLng","KhoangCach","NgayTao","NguoiTao","NgaySua","NguoiSua") '
+        'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+        (id_val, ngay, ma_diadiem, ma_congty, ma_monan, ma_nhanvien, so_luong, don_gia, thanh_tien, bua_an, trang_thai, user_lat, user_lng, khoang_cach, now, actor, now, actor)
     )
     c.commit()
     c.close()
